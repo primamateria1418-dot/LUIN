@@ -1,0 +1,381 @@
+{
+  "name": "LUIN — CRM & Backend Synchronization Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/30 * * * *"
+            }
+          ]
+        }
+      },
+      "name": "Every 30min CRM Sync",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -14448,
+        14864
+      ],
+      "id": "crm-trigger-001"
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:8000/api/v1/workspaces",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "name": "Fetch All Workspaces",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -14240,
+        14768
+      ],
+      "id": "crm-workspaces-001",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "luin-backend-auth",
+          "name": "LUIN Backend Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const workspaces = $input.first().json;\n\nreturn workspaces.map(ws => ({\n  json: {\n    workspace_id: ws.id,\n    workspace_name: ws.name,\n    project_tag: ws.project_tag,\n    status: ws.status\n  }\n}));"
+      },
+      "name": "Split Workspaces",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -14016,
+        14864
+      ],
+      "id": "crm-split-001"
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "jsExpression": "={{ $json }}"
+      },
+      "name": "Loop Through Workspaces",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        -13792,
+        14864
+      ],
+      "id": "crm-loop-001"
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:8000/api/v1/workspaces/{{ $('Loop Through Workspaces').first().json.workspace_id }}/campaigns",
+        "options": {}
+      },
+      "name": "Fetch Workspace Campaigns",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -13568,
+        14768
+      ],
+      "id": "crm-campaigns-001"
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:8000/api/v1/workspaces/{{ $('Loop Through Workspaces').first().json.workspace_id }}/crm-logs",
+        "options": {}
+      },
+      "name": "Fetch Workspace CRM Logs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -13568,
+        14976
+      ],
+      "id": "crm-logs-001"
+    },
+    {
+      "parameters": {},
+      "name": "Merge Campaigns + Logs",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        -13360,
+        14864
+      ],
+      "id": "crm-merge-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "const prior = $('Loop Through Workspaces').first().json;\nconst campaigns = $('Merge Campaigns + Logs').all()[0].json;\nconst logs = $('Merge Campaigns + Logs').all()[1].json;\n\nconst pendingCount = campaigns.filter(c => c.status === 'pending').length;\nconst approvedCount = campaigns.filter(c => c.status === 'approved').length;\nconst publishedCount = campaigns.filter(c => c.status === 'published').length;\n\nreturn [{\n  json: {\n    workspace_id: prior.workspace_id,\n    workspace_name: prior.workspace_name,\n    project_tag: prior.project_tag,\n    campaign_stats: {\n      total: campaigns.length,\n      pending: pendingCount,\n      approved: approvedCount,\n      published: publishedCount\n    },\n    crm_log_count: logs.length,\n    last_crm_log: logs.length > 0 ? logs[logs.length - 1] : null,\n    sync_timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "name": "Compile Workspace Metrics",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -13136,
+        14864
+      ],
+      "id": "crm-metrics-001"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/api/v1/crm/event",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"event_type\": \"workspace_sync\",\n  \"workspace_id\": {{ JSON.stringify($json.workspace_id) }},\n  \"workspace_name\": {{ JSON.stringify($json.workspace_name) }},\n  \"campaign_stats\": {{ JSON.stringify($json.campaign_stats) }},\n  \"crm_log_count\": {{ $json.crm_log_count }},\n  \"last_crm_log\": {{ JSON.stringify($json.last_crm_log) }},\n  \"sync_timestamp\": {{ JSON.stringify($json.sync_timestamp) }}\n}",
+        "options": {}
+      },
+      "name": "Sync Metrics to Backend",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -12912,
+        14864
+      ],
+      "id": "crm-sync-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "const prior = $input.first().json;\nconst rejected = prior.campaign_stats.pending > 10;\n\nreturn [{\n  json: {\n    ...prior,\n    needs_attention: rejected,\n    attention_reason: rejected ? 'High pending campaign count (>10)' : null\n  }\n}];"
+      },
+      "name": "Check for Attention Needed",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -12688,
+        14864
+      ],
+      "id": "crm-check-001"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.needs_attention }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "IF Attention Needed",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -12480,
+        14864
+      ],
+      "id": "crm-if-attention-001"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/api/v1/crm/log",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"workspace_id\": {{ JSON.stringify($json.workspace_id) }},\n  \"channel\": \"n8n\",\n  \"message_text\": \"Attention needed: {{ $json.attention_reason }} for workspace {{ $json.workspace_name }}\",\n  \"action_item\": \"Review pending campaigns for {{ $json.workspace_name }}\",\n  \"status\": \"open\"\n}",
+        "options": {}
+      },
+      "name": "Log Attention Alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -12256,
+        14752
+      ],
+      "id": "crm-alert-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "const prior = $input.first().json;\n\nreturn [{\n  json: {\n    workspace_id: prior.workspace_id,\n    workspace_name: prior.workspace_name,\n    campaign_stats: prior.campaign_stats,\n    crm_log_count: prior.crm_log_count,\n    sync_status: 'completed',\n    sync_timestamp: prior.sync_timestamp\n  }\n}];"
+      },
+      "name": "Prepare Sync Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -12032,
+        14864
+      ],
+      "id": "crm-result-001"
+    }
+  ],
+  "connections": {
+    "Every 30min CRM Sync": {
+      "main": [
+        [
+          {
+            "node": "Fetch All Workspaces",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch All Workspaces": {
+      "main": [
+        [
+          {
+            "node": "Split Workspaces",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Workspaces": {
+      "main": [
+        [
+          {
+            "node": "Loop Through Workspaces",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Through Workspaces": {
+      "main": [
+        [
+          {
+            "node": "Fetch Workspace Campaigns",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch Workspace CRM Logs",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Fetch Workspace Campaigns": {
+      "main": [
+        [
+          {
+            "node": "Merge Campaigns + Logs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Workspace CRM Logs": {
+      "main": [
+        [
+          {
+            "node": "Merge Campaigns + Logs",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Campaigns + Logs": {
+      "main": [
+        [
+          {
+            "node": "Compile Workspace Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compile Workspace Metrics": {
+      "main": [
+        [
+          {
+            "node": "Sync Metrics to Backend",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sync Metrics to Backend": {
+      "main": [
+        [
+          {
+            "node": "Check for Attention Needed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check for Attention Needed": {
+      "main": [
+        [
+          {
+            "node": "IF Attention Needed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Attention Needed": {
+      "main": [
+        [
+          {
+            "node": "Log Attention Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Sync Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Attention Alert": {
+      "main": [
+        [
+          {
+            "node": "Prepare Sync Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Sync Result": {
+      "main": [
+        [
+          {
+            "node": "Log to History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "instanceId": "9a11fbddf22ac36d3c3e3323f3f87a790687515d712f5d379efb251ff2726b09"
+  }
+}

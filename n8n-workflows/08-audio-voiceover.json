@@ -1,0 +1,465 @@
+{
+  "name": "LUIN — Audio/Voiceover Generation Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 14 * * *"
+            }
+          ]
+        }
+      },
+      "name": "Daily 2pm Audio Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -14448,
+        14864
+      ],
+      "id": "aud-trigger-001"
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:8000/api/v1/workspaces",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "name": "Fetch Workspaces",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -14240,
+        14768
+      ],
+      "id": "aud-workspaces-001",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "luin-backend-auth",
+          "name": "LUIN Backend Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:3000/api/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"oup-creative-agent\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Generate a voiceover script for a brand video.\\n\\nBrand: {{ $('Fetch Workspaces').first().json[0].name }}\\nProject Tag: {{ $('Fetch Workspaces').first().json[0].project_tag }}\\n\\nOutput format:\\nVOICEOVER_SCRIPT: [full script with timing cues]\\nTONE: [professional, casual, energetic, etc.]\\nDURATION: [estimated seconds]\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "name": "Generate Voiceover Script",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -14016,
+        14864
+      ],
+      "id": "aud-script-001",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "luin-backend-auth",
+          "name": "LUIN Backend Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const scriptText = $input.first().json.choices[0].message.content;\n\nconst voiceoverMatch = scriptText.match(/VOICEOVER_SCRIPT:\\s*([\\s\\S]*?)\\n\\s*TONE:/i);\nconst toneMatch = scriptText.match(/TONE:\\s*(.+)/i);\nconst durationMatch = scriptText.match(/DURATION:\\s*(\\d+)/i);\n\nreturn [{\n  json: {\n    workspace_id: $('Fetch Workspaces').first().json[0].id,\n    workspace_name: $('Fetch Workspaces').first().json[0].name,\n    voiceover_script: voiceoverMatch ? voiceoverMatch[1].trim() : '',\n    tone: toneMatch ? toneMatch[1].trim() : 'professional',\n    estimated_duration: durationMatch ? parseInt(durationMatch[1]) : 30\n  }\n}];"
+      },
+      "name": "Extract Voiceover Script",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -13792,
+        14864
+      ],
+      "id": "aud-extract-001"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8188/tts",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"text\": {{ JSON.stringify($json.voiceover_script) }},\n  \"tone\": {{ JSON.stringify($json.tone) }},\n  \"model\": \"f5-tts\",\n  \"workspace_id\": {{ JSON.stringify($json.workspace_id) }},\n  \"workspace_name\": {{ JSON.stringify($json.workspace_name) }}\n}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "name": "Generate Audio via F5-TTS",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -13568,
+        14864
+      ],
+      "id": "aud-tts-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "const prior = $input.first().json;\nconst promptId = $input.first().json.prompt_id || $input.first().json.id;\n\nreturn [{\n  json: {\n    ...prior,\n    prompt_id: promptId,\n    status: 'pending',\n    polling_url: `http://host.docker.internal:8188/prompt/${promptId}`\n  }\n}];"
+      },
+      "name": "Extract Audio Prompt ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -13360,
+        14864
+      ],
+      "id": "aud-promptid-001"
+    },
+    {
+      "parameters": {
+        "name": "Wait for Audio",
+        "waitTime": {
+          "type": "minutes",
+          "value": 2
+        }
+      },
+      "name": "Wait for Audio Generation",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -13136,
+        14864
+      ],
+      "id": "aud-wait-001",
+      "resume": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.polling_url }}",
+        "options": {}
+      },
+      "name": "Check Audio Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -12912,
+        14864
+      ],
+      "id": "aud-status-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "const status = $input.first().json;\nconst prior = $('Extract Audio Prompt ID').first().json;\n\nreturn [{\n  json: {\n    ...prior,\n    status: status.status || 'unknown',\n    output_url: status.output_url || null,\n    error: status.error || null\n  }\n}];"
+      },
+      "name": "Parse Audio Status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -12688,
+        14864
+      ],
+      "id": "aud-parse-001"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:3000/api/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"oup-qa-agent\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Review this generated voiceover for quality and brand compliance.\\n\\nVoiceover Script:\\n{{ $json.voiceover_script }}\\n\\nTone: {{ $json.tone }}\\nAudio URL: {{ $json.output_url }}\\n\\nVerdict: APPROVED or REJECTED with specific reasons.\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "name": "QA Audio Review",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -12480,
+        14864
+      ],
+      "id": "aud-qa-001",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "luin-backend-auth",
+          "name": "LUIN Backend Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const qaText = $input.first().json.choices[0].message.content;\nconst prior = $('Parse Audio Status').first().json;\nconst approved = qaText.toUpperCase().includes('VERDICT: APPROVED');\n\nreturn [{ json: { ...prior, qa_output: qaText, approved, qa_approved: approved } }];"
+      },
+      "name": "Extract Audio QA Verdict",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -12256,
+        14864
+      ],
+      "id": "aud-qa-extract-001"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.approved }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "IF Audio Approved",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -12032,
+        14864
+      ],
+      "id": "aud-if-approved-001"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/api/v1/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"generation_type\": \"audio\",\n  \"prompt\": {{ JSON.stringify($json.voiceover_script) }},\n  \"workspace_id\": {{ JSON.stringify($json.workspace_id) }},\n  \"output_url\": {{ JSON.stringify($json.output_url) }},\n  \"status\": \"approved\",\n  \"tone\": {{ JSON.stringify($json.tone) }},\n  \"estimated_duration\": {{ $json.estimated_duration }},\n  \"qa_notes\": {{ JSON.stringify($json.qa_output) }}\n}",
+        "options": {}
+      },
+      "name": "Sync Audio to Backend",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -11808,
+        14752
+      ],
+      "id": "aud-sync-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "const prior = $('Extract Audio QA Verdict').first().json;\nconst rewritePrompt = `REGENERATION REQUIRED.\\n\\nQA rejected the audio for this reason:\\n${prior.qa_output}\\n\\nOriginal script: ${prior.voiceover_script}\\nTone: ${prior.tone}\\n\\nRegenerate with corrections applied.`;\n\nreturn [{ json: { ...prior, rewrite_prompt: rewritePrompt } }];"
+      },
+      "name": "Prepare Audio Regeneration",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -11808,
+        14976
+      ],
+      "id": "aud-rewrite-001"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8188/tts",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"text\": {{ JSON.stringify($json.voiceover_script) }},\n  \"tone\": {{ JSON.stringify($json.tone) }},\n  \"model\": \"f5-tts\",\n  \"workspace_id\": {{ JSON.stringify($json.workspace_id) }},\n  \"rewrite_prompt\": {{ JSON.stringify($json.rewrite_prompt) }}\n}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "name": "Regenerate Audio",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -11584,
+        14976
+      ],
+      "id": "aud-regenerate-001"
+    }
+  ],
+  "connections": {
+    "Daily 2pm Audio Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Workspaces",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Workspaces": {
+      "main": [
+        [
+          {
+            "node": "Generate Voiceover Script",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Voiceover Script": {
+      "main": [
+        [
+          {
+            "node": "Extract Voiceover Script",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Voiceover Script": {
+      "main": [
+        [
+          {
+            "node": "Generate Audio via F5-TTS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Audio via F5-TTS": {
+      "main": [
+        [
+          {
+            "node": "Extract Audio Prompt ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Audio Prompt ID": {
+      "main": [
+        [
+          {
+            "node": "Wait for Audio Generation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for Audio Generation": {
+      "main": [
+        [
+          {
+            "node": "Check Audio Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Audio Status": {
+      "main": [
+        [
+          {
+            "node": "Parse Audio Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Audio Status": {
+      "main": [
+        [
+          {
+            "node": "QA Audio Review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "QA Audio Review": {
+      "main": [
+        [
+          {
+            "node": "Extract Audio QA Verdict",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Audio QA Verdict": {
+      "main": [
+        [
+          {
+            "node": "IF Audio Approved",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Audio Approved": {
+      "main": [
+        [
+          {
+            "node": "Sync Audio to Backend",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Audio Regeneration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sync Audio to Backend": {
+      "main": [
+        [
+          {
+            "node": "Log to History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Audio Regeneration": {
+      "main": [
+        [
+          {
+            "node": "Regenerate Audio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Regenerate Audio": {
+      "main": [
+        [
+          {
+            "node": "Wait for Audio Generation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "instanceId": "9a11fbddf22ac36d3c3e3323f3f87a790687515d712f5d379efb251ff2726b09"
+  }
+}

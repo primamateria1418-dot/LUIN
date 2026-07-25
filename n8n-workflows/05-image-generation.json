@@ -1,0 +1,545 @@
+{
+  "name": "LUIN — Multi-Modal Image Generation Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * *"
+            }
+          ]
+        }
+      },
+      "name": "Daily 8am Image Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -14448,
+        14864
+      ],
+      "id": "img-trigger-001"
+    },
+    {
+      "parameters": {
+        "url": "http://luin-backend:8000/api/v1/workspaces",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "name": "Fetch Workspaces",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -14240,
+        14768
+      ],
+      "id": "img-workspaces-001",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "luin-backend-auth",
+          "name": "LUIN Backend Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "http://luin-backend:8000/api/v1/brand/palette",
+        "method": "POST",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"client_id\": \"{{ $('Fetch Workspaces').first().json[0].id }}\",\n  \"source_url\": \"\"\n}",
+        "options": {}
+      },
+      "name": "Extract Brand Palette",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -14240,
+        14976
+      ],
+      "id": "img-palette-001"
+    },
+    {
+      "parameters": {},
+      "name": "Merge Workspace + Palette",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        -14016,
+        14864
+      ],
+      "id": "img-merge-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "const workspace = $('Merge Workspace + Palette').first().json;\nconst palette = $('Merge Workspace + Palette').all()[1].json;\n\nreturn [{\n  json: {\n    workspace_id: workspace.id,\n    workspace_name: workspace.name,\n    project_tag: workspace.project_tag,\n    primary_color: palette.primary || '#1e293b',\n    secondary_color: palette.secondary || '#334155',\n    accent_color: palette.accent || '#3b82f6',\n    font_family: palette.font_family || 'Inter',\n    brand_tokens: palette.tokens || []\n  }\n}];"
+      },
+      "name": "Prepare Brand Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -14016,
+        14864
+      ],
+      "id": "img-prepare-001"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:3000/api/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"oup-creative-agent\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Generate an image generation prompt for a brand campaign.\\n\\nBrand Palette: {{ $json.primary_color }}, {{ $json.secondary_color }}, {{ $json.accent_color }}\\nFont: {{ $json.font_family }}\\nProject Tag: {{ $json.project_tag }}\\n\\nOutput format:\\nPROMPT: [detailed image description]\\nSTYLE: [art style]\\nASPECT_RATIO: [ratio]\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "name": "Generate Image Prompt",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -13792,
+        14864
+      ],
+      "id": "img-prompt-001",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "luin-backend-auth",
+          "name": "LUIN Backend Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const creativeText = $input.first().json.choices[0].message.content;\n\nconst promptMatch = creativeText.match(/PROMPT:\\s*([\\s\\S]*?)(?=\\n\\s*STYLE:)/i);\nconst styleMatch = creativeText.match(/STYLE:\\s*(.+)/i);\nconst ratioMatch = creativeText.match(/ASPECT_RATIO:\\s*(.+)/i);\n\nreturn [{\n  json: {\n    workspace_id: $('Prepare Brand Context').first().json.workspace_id,\n    prompt: promptMatch ? promptMatch[1].trim() : '',\n    style: styleMatch ? styleMatch[1].trim() : 'photorealistic',\n    aspect_ratio: ratioMatch ? ratioMatch[1].trim() : '16:9',\n    brand_context: $('Prepare Brand Context').first().json\n  }\n}];"
+      },
+      "name": "Extract Image Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -13568,
+        14864
+      ],
+      "id": "img-extract-001"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8188/prompt",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"prompt\": {{ JSON.stringify($json.prompt) }},\n  \"style\": {{ JSON.stringify($json.style) }},\n  \"aspect_ratio\": {{ JSON.stringify($json.aspect_ratio) }},\n  \"model\": \"flux1-dev\",\n  \"workspace_id\": {{ JSON.stringify($json.workspace_id) }}\n}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "name": "Submit to ComfyUI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -13360,
+        14864
+      ],
+      "id": "img-comfyui-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "const prior = $input.first().json;\nconst promptId = $input.first().json.prompt_id || $input.first().json.id;\n\nreturn [{\n  json: {\n    ...prior,\n    prompt_id: promptId,\n    status: 'pending',\n    polling_url: `http://host.docker.internal:8188/prompt/${promptId}`\n  }\n}];"
+      },
+      "name": "Extract Prompt ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -13136,
+        14864
+      ],
+      "id": "img-promptid-001"
+    },
+    {
+      "parameters": {
+        "name": "Wait for Image",
+        "waitTime": {
+          "type": "minutes",
+          "value": 2
+        }
+      },
+      "name": "Wait for Generation",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -12912,
+        14864
+      ],
+      "id": "img-wait-001",
+      "resume": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.polling_url }}",
+        "options": {}
+      },
+      "name": "Check Image Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -12688,
+        14864
+      ],
+      "id": "img-status-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "const status = $input.first().json;\nconst prior = $('Extract Prompt ID').first().json;\n\nreturn [{\n  json: {\n    ...prior,\n    status: status.status || 'unknown',\n    output_url: status.output_url || null,\n    error: status.error || null\n  }\n}];"
+      },
+      "name": "Parse Image Status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -12480,
+        14864
+      ],
+      "id": "img-parse-001"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:3000/api/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"oup-qa-agent\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Review this generated image for brand compliance.\\n\\nBrand Palette: {{ $('Prepare Brand Context').first().json.primary_color }}, {{ $('Prepare Brand Context').first().json.secondary_color }}, {{ $('Prepare Brand Context').first().json.accent_color }}\\nBrand Tokens: {{ JSON.stringify($('Prepare Brand Context').first().json.brand_tokens) }}\\n\\nImage URL: {{ $json.output_url }}\\n\\nVerdict: APPROVED or REJECTED with reasons.\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "name": "QA Image Review",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -12256,
+        14864
+      ],
+      "id": "img-qa-001",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "luin-backend-auth",
+          "name": "LUIN Backend Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const qaText = $input.first().json.choices[0].message.content;\nconst prior = $('Parse Image Status').first().json;\nconst approved = qaText.toUpperCase().includes('VERDICT: APPROVED');\n\nreturn [{ json: { ...prior, qa_output: qaText, approved, qa_approved: approved } }];"
+      },
+      "name": "Extract QA Verdict",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -12032,
+        14864
+      ],
+      "id": "img-qa-extract-001"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.approved }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "IF Image Approved",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -11808,
+        14864
+      ],
+      "id": "img-if-approved-001"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://luin-backend:8000/api/v1/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"generation_type\": \"image\",\n  \"prompt\": {{ JSON.stringify($json.prompt) }},\n  \"workspace_id\": {{ JSON.stringify($json.workspace_id) }},\n  \"output_url\": {{ JSON.stringify($json.output_url) }},\n  \"status\": \"approved\",\n  \"qa_notes\": {{ JSON.stringify($json.qa_output) }}\n}",
+        "options": {}
+      },
+      "name": "Sync to Backend",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -11584,
+        14752
+      ],
+      "id": "img-sync-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "const prior = $('Extract QA Verdict').first().json;\nconst rewritePrompt = `REGENERATION REQUIRED.\\n\\nQA rejected the image for this reason:\\n${prior.qa_output}\\n\\nOriginal prompt: ${prior.prompt}\\nBrand colors: ${$('Prepare Brand Context').first().json.primary_color}, ${$('Prepare Brand Context').first().json.secondary_color}\\n\\nRegenerate with corrections applied.`;\n\nreturn [{ json: { ...prior, rewrite_prompt: rewritePrompt } }];"
+      },
+      "name": "Prepare Regeneration",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -11584,
+        14976
+      ],
+      "id": "img-rewrite-001"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8188/prompt",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"prompt\": {{ JSON.stringify($json.rewrite_prompt) }},\n  \"style\": {{ JSON.stringify($json.style) }},\n  \"aspect_ratio\": {{ JSON.stringify($json.aspect_ratio) }},\n  \"model\": \"flux1-dev\",\n  \"workspace_id\": {{ JSON.stringify($json.workspace_id) }}\n}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "name": "Regenerate Image",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -11360,
+        14976
+      ],
+      "id": "img-regenerate-001"
+    }
+  ],
+  "connections": {
+    "Daily 8am Image Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Workspaces",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Extract Brand Palette",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Fetch Workspaces": {
+      "main": [
+        [
+          {
+            "node": "Merge Workspace + Palette",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Brand Palette": {
+      "main": [
+        [
+          {
+            "node": "Merge Workspace + Palette",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Workspace + Palette": {
+      "main": [
+        [
+          {
+            "node": "Prepare Brand Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Brand Context": {
+      "main": [
+        [
+          {
+            "node": "Generate Image Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Image Prompt": {
+      "main": [
+        [
+          {
+            "node": "Extract Image Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Image Prompt": {
+      "main": [
+        [
+          {
+            "node": "Submit to ComfyUI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Submit to ComfyUI": {
+      "main": [
+        [
+          {
+            "node": "Extract Prompt ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Prompt ID": {
+      "main": [
+        [
+          {
+            "node": "Wait for Generation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for Generation": {
+      "main": [
+        [
+          {
+            "node": "Check Image Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Image Status": {
+      "main": [
+        [
+          {
+            "node": "Parse Image Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Image Status": {
+      "main": [
+        [
+          {
+            "node": "QA Image Review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "QA Image Review": {
+      "main": [
+        [
+          {
+            "node": "Extract QA Verdict",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract QA Verdict": {
+      "main": [
+        [
+          {
+            "node": "IF Image Approved",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Image Approved": {
+      "main": [
+        [
+          {
+            "node": "Sync to Backend",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Regeneration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sync to Backend": {
+      "main": [
+        [
+          {
+            "node": "Log to History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Regeneration": {
+      "main": [
+        [
+          {
+            "node": "Regenerate Image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Regenerate Image": {
+      "main": [
+        [
+          {
+            "node": "Wait for Generation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "instanceId": "9a11fbddf22ac36d3c3e3323f3f87a790687515d712f5d379efb251ff2726b09"
+  }
+}

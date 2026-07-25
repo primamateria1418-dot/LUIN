@@ -1,0 +1,340 @@
+{
+  "name": "LUIN — Webhook Router (luin.cc)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "luin",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "luin-webhook-default"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "body",
+        "options": {}
+      },
+      "id": "split-out",
+      "name": "Split Out",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Route based on event_type\nconst item = $input.item;\nconst body = item.json.body || {};\nconst eventType = body.event_type || body.type || 'generic';\n\n// Set routing metadata\nitem.json._luin_route = eventType;\nitem.json._luin_timestamp = new Date().toISOString();\n\nreturn item;"
+      },
+      "id": "route-logic",
+      "name": "Route by Event Type",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json._luin_route}}",
+              "operation": "equals",
+              "value2": "message_log"
+            }
+          ]
+        }
+      },
+      "id": "condition-message",
+      "name": "Is Message Log?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [900, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json._luin_route}}",
+              "operation": "equals",
+              "value2": "campaign_update"
+            }
+          ]
+        }
+      },
+      "id": "condition-campaign",
+      "name": "Is Campaign Update?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [900, 450]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json._luin_route}}",
+              "operation": "equals",
+              "value2": "image_generation"
+            }
+          ]
+        }
+      },
+      "id": "condition-image",
+      "name": "Is Image Gen?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [900, 700]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.body?.webhook_url || 'http://localhost:8000/api/v1/crm/log' }}",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "client_id",
+              "value": "={{ $json.body?.client_id || '' }}"
+            },
+            {
+              "name": "channel",
+              "value": "n8n"
+            },
+            {
+              "name": "message_text",
+              "value": "={{ $json.body?.data?.message || $json.body?.message || '' }}"
+            },
+            {
+              "name": "action_item",
+              "value": "={{ $json.body?.data?.action_item || '' }}"
+            },
+            {
+              "name": "status",
+              "value": "open"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "log-to-backend",
+      "name": "Log to LUIN Backend",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1120, 200]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.body?.webhook_url || 'http://localhost:8000/api/v1/crm/event' }}",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "event_type",
+              "value": "campaign_update"
+            },
+            {
+              "name": "client_id",
+              "value": "={{ $json.body?.client_id || '' }}"
+            },
+            {
+              "name": "data",
+              "value": "={{ JSON.stringify($json.body?.data || {}) }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "update-campaign",
+      "name": "Update Campaign via Webhook",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1120, 450]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:8188/prompt",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "prompt",
+              "value": "={{ JSON.stringify($json.body?.data?.workflow || {}) }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 300000,
+          "responseFormat": "json"
+        }
+      },
+      "id": "trigger-comfyui",
+      "name": "Trigger ComfyUI Generation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1120, 700]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"status\": \"received\", \"event_type\": \"={{ $json._luin_route }}\", \"timestamp\": \"={{ $json._luin_timestamp }}\"}",
+        "options": {}
+      },
+      "id": "response",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1340, 300]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Split Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out": {
+      "main": [
+        [
+          {
+            "node": "Route by Event Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Event Type": {
+      "main": [
+        [
+          {
+            "node": "Is Message Log?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Is Campaign Update?",
+            "type": "main",
+            "index": 1
+          }
+        ],
+        [
+          {
+            "node": "Is Image Gen?",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Is Message Log?": {
+      "main": [
+        [
+          {
+            "node": "Log to LUIN Backend",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Is Campaign Update?",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Is Campaign Update?": {
+      "main": [
+        [
+          {
+            "node": "Update Campaign via Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Is Image Gen?",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Is Image Gen?": {
+      "main": [
+        [
+          {
+            "node": "Trigger ComfyUI Generation",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Log to LUIN Backend": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Campaign via Webhook": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trigger ComfyUI Generation": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "saveExecutionProgress": true
+  },
+  "triggerTimes": []
+}

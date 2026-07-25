@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LUIN — Client Portal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/main.css" />
+</head>
+<body>
+
+<!-- Login -->
+<div id="portal-login" class="login-screen">
+  <div class="login-card">
+    <div class="login-logo">
+      <h1><span>L</span>UIN</h1>
+      <p>Client Portal</p>
+    </div>
+    <div class="login-field">
+      <label for="portal-email">Corporate Email</label>
+      <input type="email" id="portal-email" placeholder="you@company.com" />
+    </div>
+    <div class="login-error" id="portal-error"></div>
+    <button class="btn btn-lg" onclick="portalLogin()">Sign In</button>
+    <p style="text-align:center;margin-top:20px;font-size:0.82rem;color:var(--text-dim);">
+      <a href="index.html" style="color:var(--accent);">← Back to LUIN.cc</a>
+    </p>
+  </div>
+</div>
+
+<!-- Portal App -->
+<div id="portal-app" class="hidden">
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="index.html" class="nav-logo"><span>L</span>UIN <span style="font-size:0.7rem;color:var(--text-dim);font-weight:400;margin-left:6px;">Portal</span></a>
+      <div class="nav-right">
+        <span id="portal-client-name" class="text-muted" style="font-size:0.88rem;"></span>
+        <div class="topbar-avatar" id="portal-avatar">L</div>
+        <button class="topbar-btn" onclick="document.getElementById('portal-chat').classList.toggle('open')">💬 Chat</button>
+        <a href="login.html" class="topbar-btn" onclick="portalLogout()">Logout</a>
+      </div>
+    </div>
+  </nav>
+
+  <div style="max-width:var(--max);margin:0 auto;padding:24px;">
+    <div class="portal-tabs">
+      <button class="portal-tab active" onclick="switchPortalTab(this,'portal-overview')">Overview</button>
+      <button class="portal-tab" onclick="switchPortalTab(this,'portal-calendar')">Calendar</button>
+      <button class="portal-tab" onclick="switchPortalTab(this,'portal-approve')">Approve</button>
+      <button class="portal-tab" onclick="switchPortalTab(this,'portal-studio')">Studio</button>
+      <button class="portal-tab" onclick="switchPortalTab(this,'portal-analytics')">Analytics</button>
+    </div>
+
+    <div id="portal-overview">
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-label">Pending Review</div><div class="stat-value amber">3</div></div>
+        <div class="stat-card"><div class="stat-label">Approved</div><div class="stat-value green">8</div></div>
+        <div class="stat-card"><div class="stat-label">Published</div><div class="stat-value">12</div></div>
+        <div class="stat-card"><div class="stat-label">Engagement Rate</div><div class="stat-value green">4.2%</div></div>
+      </div>
+      <div class="card"><div class="card-header"><h3>Recent Activity</h3></div><div class="card-body">
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);">
+            <span style="font-size:1.2rem;">✅</span>
+            <div><div style="font-size:0.88rem;">LinkedIn post approved</div><div style="font-size:0.78rem;color:var(--text-dim);">2 hours ago</div></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);">
+            <span style="font-size:1.2rem;">🎨</span>
+            <div><div style="font-size:0.88rem;">Image generated for Instagram campaign</div><div style="font-size:0.78rem;color:var(--text-dim);">5 hours ago</div></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;padding:10px 0;">
+            <span style="font-size:1.2rem;">📋</span>
+            <div><div style="font-size:0.88rem;">Weekly report generated</div><div style="font-size:0.78rem;color:var(--text-dim);">Yesterday</div></div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+    <div id="portal-calendar" style="display:none;">
+      <div class="card"><div class="card-body"><div id="portal-cal-grid" class="calendar-grid"></div></div></div>
+    </div>
+
+    <div id="portal-approve" style="display:none;">
+      <div class="card"><div class="card-header"><h3>Pending Approvals</h3></div><div class="card-body">
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div class="kanban-card">
+            <div class="kanban-card-platform">LinkedIn</div>
+            <div class="kanban-card-text">Excited to share our Q3 strategy: AI-first marketing is transforming how enterprises scale their content operations.</div>
+            <div style="margin-top:10px;display:flex;gap:8px;">
+              <button class="btn btn-sm btn-green" onclick="alert('Approved!')">Approve</button>
+              <button class="btn btn-sm btn-outline">Request Edit</button>
+              <button class="btn btn-sm btn-outline" style="border-color:var(--red);color:var(--red);">Reject</button>
+            </div>
+          </div>
+          <div class="kanban-card">
+            <div class="kanban-card-platform">Twitter/X</div>
+            <div class="kanban-card-text">Thread: 5 ways enterprises are using AI to 10x their content production (without losing their brand voice).</div>
+            <div style="margin-top:10px;display:flex;gap:8px;">
+              <button class="btn btn-sm btn-green" onclick="alert('Approved!')">Approve</button>
+              <button class="btn btn-sm btn-outline">Request Edit</button>
+              <button class="btn btn-sm btn-outline" style="border-color:var(--red);color:var(--red);">Reject</button>
+            </div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+    <div id="portal-studio" style="display:none;">
+      <div class="studio-grid">
+        <div class="studio-panel">
+          <h3>Generate Asset</h3>
+          <div class="studio-field">
+            <label>Type</label>
+            <select id="portal-gen-type">
+              <option value="copy">✍️ Copy</option>
+              <option value="image">🎨 Image (Flux.1)</option>
+              <option value="video">🎬 Video (Wan2.2)</option>
+              <option value="palette">🎨 Color Palette</option>
+            </select>
+          </div>
+          <div class="studio-field">
+            <label>Prompt</label>
+            <textarea id="portal-gen-prompt" placeholder="Describe what you need..."></textarea>
+          </div>
+          <button class="btn btn-lg" onclick="portalGenerate()">Generate</button>
+        </div>
+        <div class="studio-panel">
+          <h3>Result</h3>
+          <div id="portal-gen-result" style="min-height:200px;display:flex;align-items:center;justify-content:center;color:var(--text-dim);font-size:0.88rem;">
+            Your generated asset will appear here.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="portal-analytics" style="display:none;">
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-label">Total Reach</div><div class="stat-value accent">28.4K</div><div class="stat-change">↑ 8% vs last month</div></div>
+        <div class="stat-card"><div class="stat-label">Engagement</div><div class="stat-value green">4.2%</div><div class="stat-change">↑ 12% vs last month</div></div>
+        <div class="stat-card"><div class="stat-label">Click-Through</div><div class="stat-value">2.1%</div><div class="stat-change">↓ 3% vs last month</div></div>
+        <div class="stat-card"><div class="stat-label">New Followers</div><div class="stat-value green">347</div><div class="stat-change">↑ 24% vs last month</div></div>
+      </div>
+      <div class="card"><div class="card-header"><h3>Platform Breakdown</h3></div><div class="card-body">
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div><div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span style="font-size:0.85rem;">LinkedIn</span><span style="font-size:0.85rem;color:var(--green);">4.8%</span></div><div style="background:var(--surface-2);height:8px;border-radius:4px;"><div style="width:78%;height:100%;background:var(--green);border-radius:4px;"></div></div></div>
+          <div><div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span style="font-size:0.85rem;">Twitter/X</span><span style="font-size:0.85rem;color:var(--accent);">3.2%</span></div><div style="background:var(--surface-2);height:8px;border-radius:4px;"><div style="width:52%;height:100%;background:var(--accent);border-radius:4px;"></div></div></div>
+          <div><div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span style="font-size:0.85rem;">Instagram</span><span style="font-size:0.85rem;color:var(--amber);">5.1%</span></div><div style="background:var(--surface-2);height:8px;border-radius:4px;"><div style="width:85%;height:100%;background:var(--amber);border-radius:4px;"></div></div></div>
+          <div><div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span style="font-size:0.85rem;">TikTok</span><span style="font-size:0.85rem;color:var(--text-muted);">2.8%</span></div><div style="background:var(--surface-2);height:8px;border-radius:4px;"><div style="width:42%;height:100%;background:var(--text-dim);border-radius:4px;"></div></div></div>
+        </div>
+      </div></div>
+    </div>
+  </div>
+</div>
+
+<!-- Chat Drawer -->
+<div class="chat-drawer" id="portal-chat">
+  <div class="chat-header"><h3>LUIN Concierge</h3><button class="topbar-btn" onclick="document.getElementById('portal-chat').classList.remove('open')">✕</button></div>
+  <div class="chat-messages" id="portal-chat-msgs">
+    <div class="chat-msg ai"><div class="msg-label">LUIN Concierge</div>Hi! I'm your LUIN concierge. How can I help?</div>
+  </div>
+  <div class="chat-input">
+    <input type="text" id="portal-chat-input" placeholder="Ask anything..." onkeydown="if(event.key==='Enter')portalSendChat()" />
+    <button class="btn" onclick="portalSendChat()">Send</button>
+  </div>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+function portalLogin() {
+  const email = document.getElementById('portal-email').value.trim();
+  if (!email) { document.getElementById('portal-error').textContent = 'Enter your email.'; return; }
+  localStorage.setItem('luin_token', 'mock-jwt-token');
+  localStorage.setItem('luin_client_id', 'a1b2c3d4-e5f6-7890-abcd-ef1234567890');
+  localStorage.setItem('luin_client_name', '1095 Apparel');
+  localStorage.setItem('luin_client_plan', 'Growth');
+  document.getElementById('portal-login').classList.add('hidden');
+  document.getElementById('portal-app').classList.remove('hidden');
+  document.getElementById('portal-client-name').textContent = '1095 Apparel';
+  document.getElementById('portal-avatar').textContent = '1';
+  // Build calendar
+  const cal = document.getElementById('portal-cal-grid');
+  let h = '<div class="calendar-day-header">Mon</div><div class="calendar-day-header">Tue</div><div class="calendar-day-header">Wed</div><div class="calendar-day-header">Thu</div><div class="calendar-day-header">Fri</div><div class="calendar-day-header">Sat</div><div class="calendar-day-header">Sun</div>';
+  const events = [{d:3,p:'linkedin',t:'Report'},{d:5,p:'twitter',t:'Thread'},{d:8,p:'instagram',t:'Image'},{d:10,p:'blog',t:'Article'},{d:12,p:'linkedin',t:'Case Study'},{d:15,p:'tiktok',t:'Reel'},{d:18,p:'twitter',t:'Poll'},{d:20,p:'facebook',t:'Event'},{d:22,p:'linkedin',t:'Thought Leadership'},{d:25,p:'instagram',t:'Spotlight'},{d:28,p:'blog',t:'Review'}];
+  for (let i=1;i<=31;i++) {
+    const today = i === new Date().getDate();
+    h += `<div class="calendar-day${today?' today':''}"><div style="font-size:0.7rem;color:var(--text-dim);margin-bottom:4px;">${i}</div>${events.filter(e=>e.d===i).map(e=>`<div class="calendar-event ${e.p}">${e.t}</div>`).join('')}</div>`;
+  }
+  cal.innerHTML = h;
+}
+function portalLogout() { localStorage.clear(); location.reload(); }
+function switchPortalTab(btn, id) {
+  document.querySelectorAll('.portal-tab').forEach(t=>t.classList.remove('active'));
+  btn.classList.add('active');
+  ['portal-overview','portal-calendar','portal-approve','portal-studio','portal-analytics'].forEach(s=>{
+    document.getElementById(s).style.display = s===id ? '' : 'none';
+  });
+}
+function portalGenerate() {
+  const type = document.getElementById('portal-gen-type').value;
+  const prompt = document.getElementById('portal-gen-prompt').value.trim();
+  if (!prompt) { alert('Enter a prompt.'); return; }
+  handleGeneration(type, prompt);
+}
+function portalSendChat() {
+  const input = document.getElementById('portal-chat-input');
+  const msgs = document.getElementById('portal-chat-msgs');
+  const text = input.value.trim();
+  if (!text) return;
+  msgs.innerHTML += `<div class="chat-msg user"><div class="msg-label">You</div>${escHtml(text)}</div>`;
+  input.value = '';
+  msgs.scrollTop = msgs.scrollHeight;
+  setTimeout(()=>{
+    msgs.innerHTML += `<div class="chat-msg ai"><div class="msg-label">LUIN Concierge</div>I'll help with that. Let me check your campaigns and data.</div>`;
+    msgs.scrollTop = msgs.scrollHeight;
+  }, 800);
+}
+function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+</script>
+</body>
+</html>

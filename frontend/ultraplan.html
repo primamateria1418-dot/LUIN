@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LUIN — Deep Research & Strategy Briefs</title>
+  <meta name="description" content="LUIN™ — AI-powered deep research and strategy brief generation for ambitious B2B brands." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/main.css" />
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="index.html" class="nav-logo"><span>L</span>UIN <span class="nav-badge" style="background:var(--accent-soft);border:1px solid var(--accent-mid);color:var(--accent);font-size:0.7rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:3px 10px;border-radius:100px;margin-left:10px;">Deep Research</span></a>
+    <div class="nav-right">
+      <a href="index.html" class="topbar-btn">Home</a>
+      <a href="dashboard.html" class="btn">Dashboard →</a>
+    </div>
+  </div>
+</nav>
+
+<header class="ultraplan-hero">
+  <div class="eyebrow">LUIN Deep Research</div>
+  <h1>Your market intelligence,<br /><em>fully automated</em></h1>
+  <p>Submit a research subject. LUIN deploys a multi-agent stack to harvest signals, analyse competitors, and deliver a boardroom-ready strategy brief.</p>
+</header>
+
+<div class="main-card">
+  <div class="card" id="mainCard">
+    <div class="card-header">
+      <div class="step-bar" id="stepsBar">
+        <div class="step active" id="s1"><div class="step-num">1</div><div class="step-label">Brief</div></div>
+        <div class="step-line"></div>
+        <div class="step" id="s2"><div class="step-num">2</div><div class="step-label">Research</div></div>
+        <div class="step-line"></div>
+        <div class="step" id="s3"><div class="step-num">3</div><div class="step-label">Brief Ready</div></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div id="formWrap">
+        <div class="field-row">
+          <div class="studio-field">
+            <label>Client <span style="color:var(--accent);">*</span></label>
+            <select id="clientId">
+              <option value="luin_internal">LUIN Internal</option>
+              <option value="client_1095">1095 Apparel</option>
+              <option value="client_united_planet">United Planet</option>
+            </select>
+          </div>
+          <div class="studio-field">
+            <label>Research Subject <span style="color:var(--accent);">*</span></label>
+            <input type="text" id="subject" placeholder="e.g. AI marketing agencies UK 2026" />
+          </div>
+        </div>
+        <div class="studio-field">
+          <label>Competitors to analyse</label>
+          <input type="text" id="competitorInput" placeholder="Type a competitor name and press Enter" onkeydown="handleTagKey(event,'competitors')" />
+          <div class="tags-display" id="competitorTags" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;"></div>
+          <p style="font-size:0.78rem;color:var(--text-dim);margin-top:6px;">Leave blank to let LUIN discover competitors automatically.</p>
+        </div>
+        <div class="studio-field">
+          <label>Focus Questions <span style="color:var(--accent);">*</span></label>
+          <input type="text" id="questionInput" placeholder="Type a focus question and press Enter" onkeydown="handleTagKey(event,'questions')" />
+          <div class="tags-display" id="questionTags" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;"></div>
+        </div>
+        <div style="height:1px;background:var(--border);margin:28px 0;"></div>
+        <button class="btn btn-lg" id="submitBtn" onclick="submitBrief()">
+          🚀 Generate LUIN Research Brief
+        </button>
+      </div>
+      <div class="progress-wrap" id="progressWrap" style="display:none;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+          <div style="font-size:1rem;font-weight:700;">Running LUIN pipeline…</div>
+          <div style="font-size:0.75rem;font-weight:700;padding:4px 12px;border-radius:100px;text-transform:uppercase;letter-spacing:0.5px;background:var(--accent-soft);color:var(--accent);" id="statusBadge">Running</div>
+        </div>
+        <div class="progress-track"><div class="progress-bar" id="progressBar"></div></div>
+        <div class="log-list" id="logList"></div>
+        <button class="btn btn-outline" onclick="resetBrief()" style="width:auto;">Cancel</button>
+      </div>
+      <div class="result-wrap" id="resultWrap"></div>
+    </div>
+  </div>
+</div>
+
+<div style="max-width:860px;margin:0 auto;padding:0 24px 80px;">
+  <p style="font-size:0.78rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--text-dim);margin-bottom:24px;">How LUIN Deep Research works</p>
+  <div class="how-grid">
+    <div class="how-card"><div class="how-num">Step 01</div><div class="icon">🔭</div><h4>Harvester</h4><p>Scrapes live web for signals, news and competitor intelligence.</p></div>
+    <div class="how-card"><div class="how-num">Step 02</div><div class="icon">📡</div><h4>Signal Agent</h4><p>Distils raw data into ranked strategic signals.</p></div>
+    <div class="how-card"><div class="how-num">Step 03</div><div class="icon">🧠</div><h4>Analyst + Strategist</h4><p>Deep analysis and strategic options framework.</p></div>
+    <div class="how-card"><div class="how-num">Step 04</div><div class="icon">✅</div><h4>QA + Delivery</h4><p>QA-reviewed brief delivered as structured report.</p></div>
+  </div>
+</div>
+
+<footer style="border-top:1px solid var(--border);padding:40px 24px;">
+  <div style="max-width:1120px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;">
+    <div style="font-size:1rem;font-weight:800;"><span style="color:var(--accent);">L</span>UIN</div>
+    <span style="font-size:0.82rem;color:var(--text-dim);">© 2026 LUIN. A spear that never misses.</span>
+    <ul style="display:flex;gap:24px;list-style:none;">
+      <li><a href="index.html" style="font-size:0.82rem;color:var(--text-dim);">Home</a></li>
+      <li><a href="dashboard.html" style="font-size:0.82rem;color:var(--text-dim);">Dashboard</a></li>
+    </ul>
+  </div>
+</footer>
+
+<script>
+let competitors = [], questions = [], pollTimer = null, currentJobId = null;
+const API = window.LUIN_API_URL || 'http://localhost:8000/api/v1';
+
+function handleTagKey(e, type) {
+  if (e.key === 'Enter' || e.key === ',') {
+    e.preventDefault();
+    const val = e.target.value.replace(/,/g,'').trim();
+    if (!val) return;
+    if (type === 'competitors') { competitors.push(val); renderTags('competitorTags', competitors, 'competitors'); }
+    if (type === 'questions') { questions.push(val); renderTags('questionTags', questions, 'questions'); }
+    e.target.value = '';
+  }
+}
+
+function renderTags(cid, arr, type) {
+  document.getElementById(cid).innerHTML = arr.map((t,i) =>
+    `<span class="tag">${escHtml(t)}<span class="tag-remove" onclick="removeTag(${i},'${type}')">✕</span></span>`
+  ).join('');
+}
+
+function removeTag(idx, type) {
+  if (type === 'competitors') { competitors.splice(idx,1); renderTags('competitorTags',competitors,'competitors'); }
+  if (type === 'questions') { questions.splice(idx,1); renderTags('questionTags',questions,'questions'); }
+}
+
+async function submitBrief() {
+  const subject = document.getElementById('subject').value.trim();
+  if (!subject) { document.getElementById('subject').style.borderColor='var(--red)'; setTimeout(()=>document.getElementById('subject').style.borderColor='',1200); return; }
+  if (questions.length === 0) { questions.push('What are the key opportunities in this market?'); renderTags('questionTags',questions,'questions'); }
+
+  document.getElementById('submitBtn').disabled = true;
+  document.getElementById('formWrap').style.display = 'none';
+  document.getElementById('progressWrap').style.display = 'block';
+  setStep(2);
+
+  const PIPELINE_STEPS = [
+    { key:'harvesting', icon:'🔭', label:'Harvester', desc:'Gathering web signals and competitor data…' },
+    { key:'signals', icon:'📡', label:'Signal Agent', desc:'Distilling key strategic signals…' },
+    { key:'analysing', icon:'🔬', label:'Analyst', desc:'Deep-analysing findings…' },
+    { key:'strategising', icon:'🧠', label:'Strategist', desc:'Generating strategic options…' },
+    { key:'qa', icon:'✅', label:'QA Agent', desc:'Quality-checking brief accuracy…' },
+    { key:'assembling', icon:'📄', label:'Assembler', desc:'Compiling structured report…' },
+  ];
+
+  let logList = document.getElementById('logList');
+  logList.innerHTML = PIPELINE_STEPS.map((s,i) =>
+    `<div class="log-item" id="log-${i}"><div class="log-icon" id="icon-${i}">⏳</div><div class="log-text"><strong>${s.label}</strong><span id="desc-${i}">${i===0?s.desc:'Waiting…'}</span></div></div>`
+  ).join('');
+
+  let pct = 5, stepIdx = 0;
+  document.getElementById('progressBar').style.width = pct + '%';
+
+  function animate() {
+    if (stepIdx >= PIPELINE_STEPS.length) return;
+    const s = PIPELINE_STEPS[stepIdx];
+    if (stepIdx > 0) {
+      const prev = document.getElementById('log-'+(stepIdx-1));
+      if (prev) { prev.classList.remove('active'); prev.classList.add('done-step'); document.getElementById('icon-'+(stepIdx-1)).textContent = '✅'; }
+    }
+    const item = document.getElementById('log-'+stepIdx);
+    if (item) { item.classList.add('active'); document.getElementById('icon-'+stepIdx).textContent = s.icon; document.getElementById('icon-'+stepIdx).classList.add('spin'); document.getElementById('desc-'+stepIdx).textContent = s.desc; }
+    pct = Math.min(90, 10 + (stepIdx / PIPELINE_STEPS.length) * 80);
+    document.getElementById('progressBar').style.width = pct + '%';
+    stepIdx++;
+    if (stepIdx < PIPELINE_STEPS.length) setTimeout(animate, 12000);
+  }
+  animate();
+
+  try {
+    const res = await fetch(`${API}/deep-research`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ client_id: document.getElementById('clientId').value, subject, competitors, focus_questions: questions }),
+    });
+    const data = await res.json();
+    if (data.status === 'done' || data.pdf_url) {
+      document.getElementById('progressWrap').style.display = 'none';
+      document.getElementById('resultWrap').innerHTML = `<div class="generation-result"><div class="result-icon">🎉</div><h3>LUIN Research Brief Ready</h3><p>For: <strong>${escHtml(subject)}</strong></p>${data.pdf_url ? `<a href="${escHtml(data.pdf_url)}" target="_blank" class="btn btn-green" style="width:auto;">⬇️ Download PDF</a>` : '<p class="text-muted">Report generated successfully.</p>'}<br/><button class="btn btn-outline mt-2" onclick="resetBrief()">Run another brief →</button></div>`;
+      setStep(3);
+    }
+  } catch (e) {
+    // Simulate completion for demo
+    setTimeout(() => {
+      document.getElementById('progressWrap').style.display = 'none';
+      document.getElementById('progressBar').style.width = '100%';
+      PIPELINE_STEPS.forEach((_,i) => {
+        document.getElementById('log-'+i)?.classList.remove('active');
+        document.getElementById('log-'+i)?.classList.add('done-step');
+        document.getElementById('icon-'+i)?.textContent = '✅';
+      });
+      document.getElementById('resultWrap').innerHTML = `<div class="generation-result"><div class="result-icon">🎉</div><h3>LUIN Research Brief Ready</h3><p>For: <strong>${escHtml(subject)}</strong></p><p class="text-muted">Demo mode — connect backend API for live research.</p><button class="btn btn-outline mt-2" onclick="resetBrief()">Run another brief →</button></div>`;
+      setStep(3);
+    }, 15000);
+  }
+}
+
+function setStep(n) {
+  [1,2,3].forEach(i => {
+    const el = document.getElementById('s'+i);
+    el.classList.remove('active','done');
+    if (i < n) el.classList.add('done');
+    if (i === n) el.classList.add('active');
+  });
+}
+
+function resetBrief() {
+  clearInterval(pollTimer);
+  competitors = []; questions = []; currentJobId = null;
+  document.getElementById('competitorTags').innerHTML = '';
+  document.getElementById('questionTags').innerHTML = '';
+  document.getElementById('formWrap').style.display = '';
+  document.getElementById('submitBtn').disabled = false;
+  document.getElementById('progressWrap').style.display = 'none';
+  document.getElementById('resultWrap').innerHTML = '';
+  document.getElementById('progressBar').style.width = '0%';
+  setStep(1);
+}
+
+function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+</script>
+</body>
+</html>

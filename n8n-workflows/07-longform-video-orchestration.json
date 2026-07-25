@@ -1,0 +1,612 @@
+{
+  "name": "LUIN — Long-Form Video Orchestration Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 12 * * *"
+            }
+          ]
+        }
+      },
+      "name": "Daily 12pm Long-Form Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -14448,
+        14864
+      ],
+      "id": "lf-trigger-001"
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:8000/api/v1/workspaces",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "name": "Fetch Workspaces",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -14240,
+        14768
+      ],
+      "id": "lf-workspaces-001",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "luin-backend-auth",
+          "name": "LUIN Backend Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:3000/api/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"oup-analyst\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Break down this master prompt into segmented scene descriptions for a long-form video.\\n\\nMaster Prompt: {{ $json.master_prompt }}\\nTarget Duration: {{ $json.target_duration }} minutes\\n\\nOutput format:\\nSCENE_COUNT: [number]\\nSCENE_1: [detailed description with visuals, audio, timing]\\nSCENE_2: [detailed description with visuals, audio, timing]\\n...\\nSTYLE: [animation style]\\nVOICEOVER_SCRIPT: [full script]\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "name": "Segment Master Prompt",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -14016,
+        14864
+      ],
+      "id": "lf-segment-001",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "luin-backend-auth",
+          "name": "LUIN Backend Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const segmentText = $input.first().json.choices[0].message.content;\n\nconst sceneCountMatch = segmentText.match(/SCENE_COUNT:\\s*(\\d+)/i);\nconst styleMatch = segmentText.match(/STYLE:\\s*(.+)/i);\nconst voiceoverMatch = segmentText.match(/VOICEOVER_SCRIPT:\\s*([\\s\\S]*?)$/i);\n\nconst scenes = [];\nconst sceneRegex = /SCENE_(\\d+):\\s*([\\s\\S]*?)(?=\\n\\s*SCENE_|$)/gi;\nlet match;\nwhile ((match = sceneRegex.exec(segmentText)) !== null) {\n  scenes.push({\n    scene_number: parseInt(match[1]),\n    description: match[2].trim()\n  });\n}\n\nreturn [{\n  json: {\n    workspace_id: $('Fetch Workspaces').first().json[0].id,\n    scene_count: sceneCountMatch ? parseInt(sceneCountMatch[1]) : 5,\n    scenes: scenes,\n    style: styleMatch ? styleMatch[1].trim() : 'cinematic',\n    voiceover_script: voiceoverMatch ? voiceoverMatch[1].trim() : '',\n    master_prompt: $('Fetch Workspaces').first().json[0].name + ' Long-Form Video',\n    target_duration: 10,\n    status: 'segmented'\n  }\n}];"
+      },
+      "name": "Parse Scene Segments",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -13792,
+        14864
+      ],
+      "id": "lf-parse-001"
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "jsExpression": "={{ $json.scenes }}"
+      },
+      "name": "Loop Through Scenes",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        -13568,
+        14864
+      ],
+      "id": "lf-loop-001"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8188/prompt",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"prompt\": {{ JSON.stringify($json.description) }},\n  \"model\": \"wan2.2_ti2v_5B_fp16\",\n  \"duration\": 5,\n  \"style\": {{ JSON.stringify($json.style) }},\n  \"workspace_id\": {{ JSON.stringify($json.workspace_id) }},\n  \"scene_number\": {{ $json.scene_number }},\n  \"batch_mode\": true\n}",
+        "options": {
+          "timeout": 600000
+        }
+      },
+      "name": "Generate Scene Video",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -13360,
+        14864
+      ],
+      "id": "lf-scene-gen-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "const scene = $input.first().json;\nconst prior = $('Parse Scene Segments').first().json;\n\nreturn [{\n  json: {\n    ...prior,\n    scene_output: {\n      scene_number: scene.scene_number,\n      prompt_id: scene.prompt_id || scene.id,\n      status: 'pending',\n      polling_url: `http://host.docker.internal:8188/prompt/${scene.prompt_id || scene.id}`\n    }\n  }\n}];"
+      },
+      "name": "Extract Scene Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -13136,
+        14864
+      ],
+      "id": "lf-scene-extract-001"
+    },
+    {
+      "parameters": {
+        "name": "Wait for Scene",
+        "waitTime": {
+          "type": "minutes",
+          "value": 3
+        }
+      },
+      "name": "Wait for Scene Generation",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -12912,
+        14864
+      ],
+      "id": "lf-scene-wait-001",
+      "resume": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.scene_output.polling_url }}",
+        "options": {}
+      },
+      "name": "Check Scene Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -12688,
+        14864
+      ],
+      "id": "lf-scene-status-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "const status = $input.first().json;\nconst prior = $('Extract Scene Output').first().json;\n\nreturn [{\n  json: {\n    ...prior,\n    scene_output: {\n      ...prior.scene_output,\n      status: status.status || 'unknown',\n      output_url: status.output_url || null,\n      error: status.error || null\n    }\n  }\n}];"
+      },
+      "name": "Parse Scene Status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -12480,
+        14864
+      ],
+      "id": "lf-scene-parse-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "const prior = $input.first().json;\nconst completedScenes = prior.completed_scenes || [];\n\ncompletedScenes.push(prior.scene_output);\n\nreturn [{\n  json: {\n    ...prior,\n    completed_scenes: completedScenes,\n    remaining_scenes: prior.scene_count - completedScenes.length,\n    all_complete: prior.scene_count === completedScenes.length\n  }\n}];"
+      },
+      "name": "Track Scene Progress",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -12256,
+        14864
+      ],
+      "id": "lf-track-001"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.all_complete }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "IF All Scenes Complete",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -12032,
+        14864
+      ],
+      "id": "lf-if-complete-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "const prior = $input.first().json;\nconst scenes = prior.completed_scenes || [];\n\nconst mergedOutput = {\n  workspace_id: prior.workspace_id,\n  total_scenes: scenes.length,\n  scenes: scenes.map(s => ({\n    scene_number: s.scene_number,\n    output_url: s.output_url,\n    status: s.status\n  })),\n  voiceover_script: prior.voiceover_script,\n  style: prior.style,\n  master_prompt: prior.master_prompt,\n  status: 'ready_for_assembly'\n};\n\nreturn [{ json: mergedOutput }];"
+      },
+      "name": "Merge Scene Outputs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -11808,
+        14752
+      ],
+      "id": "lf-merge-001"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8188/assemble",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"scenes\": {{ JSON.stringify($json.scenes) }},\n  \"voiceover_script\": {{ JSON.stringify($json.voiceover_script) }},\n  \"style\": {{ JSON.stringify($json.style) }},\n  \"workspace_id\": {{ JSON.stringify($json.workspace_id) }},\n  \"master_prompt\": {{ JSON.stringify($json.master_prompt) }}\n}",
+        "options": {
+          "timeout": 900000
+        }
+      },
+      "name": "Assemble Final Video",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -11584,
+        14752
+      ],
+      "id": "lf-assemble-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "const prior = $input.first().json;\n\nreturn [{\n  json: {\n    ...prior,\n    status: 'assembling',\n    prompt_id: prior.prompt_id || prior.id\n  }\n}];"
+      },
+      "name": "Extract Assembly Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -11360,
+        14752
+      ],
+      "id": "lf-assembly-extract-001"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:3000/api/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"oup-qa-agent\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Review the assembled long-form video for quality and coherence.\\n\\nMaster Prompt: {{ $json.master_prompt }}\\nTotal Scenes: {{ $json.total_scenes }}\\nVideo URL: {{ $json.output_url }}\\n\\nVerdict: APPROVED or REJECTED with specific reasons.\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "name": "QA Long-Form Review",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -11136,
+        14752
+      ],
+      "id": "lf-qa-001",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "luin-backend-auth",
+          "name": "LUIN Backend Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const qaText = $input.first().json.choices[0].message.content;\nconst prior = $('Extract Assembly Output').first().json;\nconst approved = qaText.toUpperCase().includes('VERDICT: APPROVED');\n\nreturn [{ json: { ...prior, qa_output: qaText, approved, qa_approved: approved } }];"
+      },
+      "name": "Extract Long-Form QA Verdict",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -10912,
+        14752
+      ],
+      "id": "lf-qa-extract-001"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.approved }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "IF Long-Form Approved",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -10688,
+        14752
+      ],
+      "id": "lf-if-approved-001"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/api/v1/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"generation_type\": \"video\",\n  \"prompt\": {{ JSON.stringify($json.master_prompt) }},\n  \"workspace_id\": {{ JSON.stringify($json.workspace_id) }},\n  \"output_url\": {{ JSON.stringify($json.output_url) }},\n  \"status\": \"approved\",\n  \"scene_count\": {{ $json.total_scenes }},\n  \"qa_notes\": {{ JSON.stringify($json.qa_output) }},\n  \"video_type\": \"longform\"\n}",
+        "options": {}
+      },
+      "name": "Sync Long-Form to Backend",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -10464,
+        14656
+      ],
+      "id": "lf-sync-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "const prior = $('Extract Long-Form QA Verdict').first().json;\nconst rewritePrompt = `REASSEMBLY REQUIRED.\\n\\nQA rejected the long-form video for this reason:\\n${prior.qa_output}\\n\\nMaster prompt: ${prior.master_prompt}\\nTotal scenes: ${prior.total_scenes}\\n\\nRegenerate with corrections applied.`;\n\nreturn [{ json: { ...prior, rewrite_prompt: rewritePrompt } }];"
+      },
+      "name": "Prepare Long-Form Regeneration",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -10464,
+        14976
+      ],
+      "id": "lf-rewrite-001"
+    }
+  ],
+  "connections": {
+    "Daily 12pm Long-Form Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Workspaces",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Workspaces": {
+      "main": [
+        [
+          {
+            "node": "Segment Master Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Segment Master Prompt": {
+      "main": [
+        [
+          {
+            "node": "Parse Scene Segments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Scene Segments": {
+      "main": [
+        [
+          {
+            "node": "Loop Through Scenes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Through Scenes": {
+      "main": [
+        [
+          {
+            "node": "Generate Scene Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Scene Video": {
+      "main": [
+        [
+          {
+            "node": "Extract Scene Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Scene Output": {
+      "main": [
+        [
+          {
+            "node": "Wait for Scene Generation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for Scene Generation": {
+      "main": [
+        [
+          {
+            "node": "Check Scene Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Scene Status": {
+      "main": [
+        [
+          {
+            "node": "Parse Scene Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Scene Status": {
+      "main": [
+        [
+          {
+            "node": "Track Scene Progress",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Track Scene Progress": {
+      "main": [
+        [
+          {
+            "node": "IF All Scenes Complete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF All Scenes Complete": {
+      "main": [
+        [
+          {
+            "node": "Merge Scene Outputs",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop Through Scenes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Scene Outputs": {
+      "main": [
+        [
+          {
+            "node": "Assemble Final Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assemble Final Video": {
+      "main": [
+        [
+          {
+            "node": "Extract Assembly Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Assembly Output": {
+      "main": [
+        [
+          {
+            "node": "QA Long-Form Review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "QA Long-Form Review": {
+      "main": [
+        [
+          {
+            "node": "Extract Long-Form QA Verdict",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Long-Form QA Verdict": {
+      "main": [
+        [
+          {
+            "node": "IF Long-Form Approved",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Long-Form Approved": {
+      "main": [
+        [
+          {
+            "node": "Sync Long-Form to Backend",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Long-Form Regeneration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sync Long-Form to Backend": {
+      "main": [
+        [
+          {
+            "node": "Log to History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Long-Form Regeneration": {
+      "main": [
+        [
+          {
+            "node": "Segment Master Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "instanceId": "9a11fbddf22ac36d3c3e3323f3f87a790687515d712f5d379efb251ff2726b09"
+  }
+}

@@ -1,0 +1,104 @@
+{
+  "name": "LUIN — ComfyUI Image/Video Generation",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "comfyui-gen",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "luin-comfyui-gen"
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:8188/prompt",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "prompt",
+              "value": "={{ JSON.stringify($json.body?.workflow || {\"3\": {\"inputs\": {\"seed\": 12345, \"steps\": 20, \"cfg\": 8, \"sampler_name\": \"euler\", \"scheduler\": \"normal\", \"denoise\": 1, \"model\": [\"6\", 0], \"positive\": [\"8\", 0], \"negative\": [\"9\", 0], \"vae\": [\"10\", 0]}, \"class_type\": \"KSampler\"}}) }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 600000,
+          "responseFormat": "json"
+        }
+      },
+      "id": "send-to-comfyui",
+      "name": "Send Prompt to ComfyUI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Handle ComfyUI response\nconst response = $input.all()[0].json;\n\nif (response && response.prompt_id) {\n  // Poll for completion\n  const pollUrl = `http://localhost:8188/history/${response.prompt_id}`;\n  let attempts = 0;\n  let result = null;\n  \n  while (attempts < 120 && !result) {\n    const resp = await axios.get(pollUrl);\n    if (resp.data && resp.data[response.prompt_id]) {\n      result = resp.data[response.prompt_id];\n      break;\n    }\n    await new Promise(r => setTimeout(r, 5000));\n    attempts++;\n  }\n  \n  if (result) {\n    $input.all()[0].json.comfyui_result = result;\n  } else {\n    $input.all()[0].json.comfyui_result = { error: 'Timeout waiting for ComfyUI' };\n  }\n}\n\nreturn $input.all()[0];"
+      },
+      "id": "poll-comfyui",
+      "name": "Poll ComfyUI Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"status\": \"completed\", \"prompt_id\": \"={{ $json.body?.prompt_id || $json.comfyui_result?.prompt_id || '' }}\", \"outputs\": \"={{ JSON.stringify($json.comfyui_result?.outputs || {}) }}\"}",
+        "options": {}
+      },
+      "id": "response",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [900, 300]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Send Prompt to ComfyUI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Prompt to ComfyUI": {
+      "main": [
+        [
+          {
+            "node": "Poll ComfyUI Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Poll ComfyUI Result": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "saveExecutionProgress": true
+  },
+  "triggerTimes": []
+}

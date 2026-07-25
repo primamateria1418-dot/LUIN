@@ -1,0 +1,110 @@
+{
+  "name": "LUIN — PostEverywhere Dispatch",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "posteverywhere",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "luin-posteverywhere"
+    },
+    {
+      "parameters": {
+        "url": "https://api.posteverywhere.com/v1/posts",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "content",
+              "value": "={{ $json.body?.content || $json.body?.draft_text || '' }}"
+            },
+            {
+              "name": "platform",
+              "value": "={{ $json.body?.platform || 'linkedin' }}"
+            },
+            {
+              "name": "client_id",
+              "value": "={{ $json.body?.client_id || '' }}"
+            },
+            {
+              "name": "scheduled_at",
+              "value": "={{ $json.body?.scheduled_at || '' }}"
+            },
+            {
+              "name": "media_urls",
+              "value": "={{ JSON.stringify($json.body?.media_urls || []) }}"
+            }
+          ]
+        },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.POSTEVERYWHERE_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "dispatch-post",
+      "name": "Dispatch to PostEverywhere",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"status\": \"dispatched\", \"platform\": \"={{ $json.body?.platform || 'unknown' }}\", \"client_id\": \"={{ $json.body?.client_id || '' }}\"}",
+        "options": {}
+      },
+      "id": "response",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [680, 300]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Dispatch to PostEverywhere",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dispatch to PostEverywhere": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "saveExecutionProgress": true
+  },
+  "triggerTimes": []
+}

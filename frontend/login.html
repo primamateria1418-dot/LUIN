@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LUIN — Sign In</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/main.css" />
+</head>
+<body>
+  <div class="login-screen">
+    <div class="login-card">
+      <div class="login-logo">
+        <h1><span>L</span>UIN</h1>
+        <p>Executive Marketing Engine</p>
+      </div>
+
+      <div class="login-field">
+        <label for="login-email">Corporate Email</label>
+        <input type="email" id="login-email" placeholder="you@company.com" />
+      </div>
+
+      <div class="login-error" id="login-error"></div>
+
+      <button class="btn btn-lg" style="margin-top:8px;" onclick="handleLogin()">
+        Sign In with Magic Link
+      </button>
+
+      <div class="login-divider">or continue with</div>
+
+      <button class="login-sso-btn" onclick="alert('SSO flow — integrate Google/LinkedIn OAuth')">
+        <span>🔵</span> Google
+      </button>
+      <button class="login-sso-btn" onclick="alert('SSO flow — integrate LinkedIn OAuth')">
+        <span>🔷</span> LinkedIn
+      </button>
+
+      <p style="text-align:center;margin-top:20px;font-size:0.82rem;color:var(--text-dim);">
+        Don't have an account? <a href="index.html" style="color:var(--accent);">Visit LUIN.cc</a>
+      </p>
+    </div>
+  </div>
+
+  <script>
+    async function handleLogin() {
+      const email = document.getElementById('login-email').value.trim();
+      const errorEl = document.getElementById('login-error');
+      if (!email) { errorEl.textContent = 'Please enter your email.'; errorEl.style.display = 'block'; return; }
+      if (!email.includes('@')) { errorEl.textContent = 'Please enter a valid email.'; errorEl.style.display = 'block'; return; }
+
+      try {
+        const res = await fetch('http://localhost:8000/api/v1/auth/magic-link', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
+        });
+        const data = await res.json();
+        errorEl.textContent = 'Magic link sent! Check your inbox.';
+        errorEl.style.color = 'var(--green)';
+        errorEl.style.display = 'block';
+        // Auto-redirect to dashboard after 3s
+        setTimeout(() => {
+          localStorage.setItem('luin_email', email);
+          window.location.href = 'dashboard.html';
+        }, 3000);
+      } catch (e) {
+        // Fallback: mock login
+        localStorage.setItem('luin_token', 'mock-jwt-token');
+        localStorage.setItem('luin_client_id', 'c3d4e5f6-a7b8-9012-cdef-123456789012');
+        localStorage.setItem('luin_client_name', 'LUIN Agency');
+        localStorage.setItem('luin_client_plan', 'Growth');
+        localStorage.setItem('luin_email', email);
+        window.location.href = 'dashboard.html';
+      }
+    }
+
+    document.getElementById('login-email').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') handleLogin();
+    });
+  </script>
+</body>
+</html>

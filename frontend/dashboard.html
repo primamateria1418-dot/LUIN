@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LUIN — Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/main.css" />
+</head>
+<body>
+
+<!-- ── Login Screen ── -->
+<div id="login-screen" class="login-screen">
+  <div class="login-card">
+    <div class="login-logo">
+      <h1><span>L</span>UIN</h1>
+      <p>Executive Marketing Engine</p>
+    </div>
+    <div class="login-field">
+      <label for="login-email">Corporate Email</label>
+      <input type="email" id="login-email" placeholder="you@company.com" />
+    </div>
+    <div class="login-error" id="login-error"></div>
+    <button class="btn btn-lg" onclick="handleLogin()">Sign In with Magic Link</button>
+    <div class="login-divider">or continue with</div>
+    <button class="login-sso-btn" onclick="mockLogin()">🔵 Google</button>
+    <button class="login-sso-btn" onclick="mockLogin()">🔷 LinkedIn</button>
+    <p style="text-align:center;margin-top:20px;font-size:0.82rem;color:var(--text-dim);">
+      <a href="index.html" style="color:var(--accent);">← Back to LUIN.cc</a>
+    </p>
+  </div>
+</div>
+
+<!-- ── App Screen ── -->
+<div id="app-screen" class="hidden">
+
+  <!-- Nav -->
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="index.html" class="nav-logo"><span>L</span>UIN <span style="font-size:0.7rem;color:var(--text-dim);font-weight:400;margin-left:6px;">Dashboard</span></a>
+      <div class="nav-right">
+        <span id="current-date" class="text-dim" style="font-size:0.82rem;"></span>
+        <select id="workspace-selector" class="topbar-btn" style="padding:8px 12px;">
+          <option value="">Loading...</option>
+        </select>
+        <div class="topbar-avatar" id="topbar-avatar">L</div>
+        <button class="topbar-btn" id="chat-toggle">💬 Chat</button>
+        <a href="login.html" class="topbar-btn" onclick="logout()">Logout</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="app-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-section">
+        <div class="sidebar-label">Main</div>
+        <div class="sidebar-link active" data-section="overview"><span class="icon">📊</span> Overview</div>
+        <div class="sidebar-link" data-section="approval"><span class="icon">✅</span> Approval Queue</div>
+        <div class="sidebar-link" data-section="content"><span class="icon">📅</span> Content</div>
+        <div class="sidebar-link" data-section="studio"><span class="icon">⚡</span> Ad-Hoc Studio</div>
+        <div class="sidebar-link" data-section="campaign-studio"><span class="icon">🎯</span> Campaign Studio</div>
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-label">Intelligence</div>
+        <div class="sidebar-link" data-section="leads"><span class="icon">🎯</span> Leads</div>
+        <div class="sidebar-link" data-section="reports"><span class="icon">📋</span> Reports</div>
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-label">Account</div>
+        <div class="sidebar-link" data-section="billing"><span class="icon">💳</span> Billing</div>
+        <div class="sidebar-link" data-section="settings"><span class="icon">⚙️</span> Settings</div>
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-label">Agents</div>
+        <div id="agent-status-list"></div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+
+      <!-- Overview -->
+      <div id="section-overview" class="section">
+        <div class="content-header">
+          <div>
+            <div class="content-title">Overview</div>
+            <div class="content-subtitle">Workspace: <span id="ws-name" class="text-accent">LUIN Agency</span> · <span id="ws-id" class="text-dim" style="font-size:0.78rem;"></span></div>
+          </div>
+        </div>
+        <div id="stats-grid" class="stats-grid"></div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+          <div class="card">
+            <div class="card-header"><h3>Quick Actions</h3></div>
+            <div class="card-body" style="display:flex;flex-direction:column;gap:10px;">
+              <button class="btn btn-outline" onclick="navigateTo('studio')">⚡ Generate Asset</button>
+              <button class="btn btn-outline" onclick="navigateTo('approval')">✅ Review Queue</button>
+              <button class="btn btn-outline" onclick="navigateTo('leads')">🎯 View Leads</button>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header"><h3>System Health</h3></div>
+            <div class="card-body">
+              <div style="display:flex;flex-direction:column;gap:10px;">
+                <div style="display:flex;align-items:center;gap:10px;"><span style="width:8px;height:8px;border-radius:50%;background:var(--green);"></span> Backend API <span class="text-green" style="margin-left:auto;font-size:0.82rem;">Healthy</span></div>
+                <div style="display:flex;align-items:center;gap:10px;"><span style="width:8px;height:8px;border-radius:50%;background:var(--green);"></span> ComfyUI <span class="text-green" style="margin-left:auto;font-size:0.82rem;">Online</span></div>
+                <div style="display:flex;align-items:center;gap:10px;"><span style="width:8px;height:8px;border-radius:50%;background:var(--green);"></span> n8n <span class="text-green" style="margin-left:auto;font-size:0.82rem;">Online</span></div>
+                <div style="display:flex;align-items:center;gap:10px;"><span style="width:8px;height:8px;border-radius:50%;background:var(--amber);"></span> Groq <span class="text-amber" style="margin-left:auto;font-size:0.82rem;">API Key Needed</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Approval Queue -->
+      <div id="section-approval" class="section hidden">
+        <div class="content-header">
+          <div>
+            <div class="content-title">Approval Queue</div>
+            <div class="content-subtitle">Review and manage pending content</div>
+          </div>
+        </div>
+        <div id="approval-kanban" class="kanban"></div>
+      </div>
+
+      <!-- Content -->
+      <div id="section-content" class="section hidden">
+        <div class="content-header">
+          <div>
+            <div class="content-title">Content Calendar</div>
+            <div class="content-subtitle">July 2026</div>
+          </div>
+        </div>
+        <div class="card"><div class="card-body"><div id="content-calendar" class="calendar-grid"></div></div></div>
+      </div>
+
+      <!-- Studio -->
+      <div id="section-studio" class="section hidden">
+        <div class="content-header">
+          <div>
+            <div class="content-title">Ad-Hoc Studio</div>
+            <div class="content-subtitle">Generate marketing assets on demand</div>
+          </div>
+        </div>
+        <div class="studio-grid">
+          <div class="studio-panel">
+            <h3>Generate Asset</h3>
+            <div class="studio-field">
+              <label>Generation Type</label>
+              <select id="gen-type">
+                <option value="copy">✍️ Copy</option>
+                <option value="image">🎨 Image (Flux.1)</option>
+                <option value="video">🎬 Video (Wan2.2)</option>
+                <option value="palette">🎨 Color Palette</option>
+                <option value="vectorize">📐 Vectorize</option>
+              </select>
+            </div>
+            <div class="studio-field">
+              <label>Prompt / Description</label>
+              <textarea id="gen-prompt" placeholder="Describe what you want to generate..."></textarea>
+            </div>
+            <div class="studio-field">
+              <label>Upload File (optional)</label>
+              <div class="upload-zone" onclick="document.getElementById('gen-file').click()">
+                <div class="icon">📁</div>
+                <p>Drop file here or click to browse</p>
+                <input type="file" id="gen-file" style="display:none" accept="image/*" />
+              </div>
+            </div>
+            <button class="btn btn-lg" id="gen-submit-btn" onclick="submitGeneration()">Generate</button>
+          </div>
+          <div class="studio-panel">
+            <h3>Result</h3>
+            <div id="gen-result" style="min-height:200px;display:flex;align-items:center;justify-content:center;color:var(--text-dim);font-size:0.88rem;">
+              Your generated asset will appear here.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Campaign Studio -->
+      <div id="section-campaign-studio" class="section hidden">
+        <div class="content-header">
+          <div>
+            <div class="content-title">Campaign Studio</div>
+            <div class="content-subtitle">Submit campaigns, generate media, and manage brand assets</div>
+          </div>
+        </div>
+        
+        <div class="card" style="margin-bottom: 24px;">
+          <div class="card-header"><h3>📝 Submit New Campaign</h3></div>
+          <div class="card-body">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+              <div class="studio-field">
+                <label>Campaign Name</label>
+                <input type="text" id="campaign-name" placeholder="e.g. Q3 Product Launch" />
+              </div>
+              <div class="studio-field">
+                <label>Target Platforms</label>
+                <select id="campaign-platforms" multiple style="min-height:80px;">
+                  <option value="twitter">Twitter/X</option>
+                  <option value="linkedin">LinkedIn</option>
+                  <option value="instagram">Instagram</option>
+                  <option value="facebook">Facebook</option>
+                </select>
+                <small style="color:var(--text-dim);">Hold Ctrl/Cmd to select multiple</small>
+              </div>
+            </div>
+            <div class="studio-field">
+              <label>Campaign Description</label>
+              <textarea id="campaign-description" placeholder="Describe your campaign goals, key messages, and target audience..." rows="3"></textarea>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+              <div class="studio-field">
+                <label>Media Types to Generate</label>
+                <select id="campaign-media-types" multiple style="min-height:80px;">
+                  <option value="copy">✍️ Copy</option>
+                  <option value="image">🎨 Image (Flux.1)</option>
+                  <option value="video">🎬 Video (Wan2.2)</option>
+                  <option value="carousel">📑 Carousel</option>
+                  <option value="reel">🎥 Reel</option>
+                </select>
+                <small style="color:var(--text-dim);">Hold Ctrl/Cmd to select multiple</small>
+              </div>
+              <div class="studio-field">
+                <label>Key Messages</label>
+                <input type="text" id="campaign-key-messages" placeholder="Type and press Enter for each message" />
+                <div id="campaign-key-messages-tags" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;"></div>
+              </div>
+            </div>
+            <div class="studio-field">
+              <label>Dynamic Client Control (Live Adjustments)</label>
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+                <div>
+                  <label style="font-size:0.78rem;color:var(--text-dim);">Posting Time</label>
+                  <input type="time" id="campaign-posting-time" value="09:00" />
+                </div>
+                <div>
+                  <label style="font-size:0.78rem;color:var(--text-dim);">Frequency</label>
+                  <select id="campaign-frequency">
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="bi-weekly">Bi-weekly</option>
+                    <option value="monthly">Monthly</option>
+                  </select>
+                </div>
+                <div>
+                  <label style="font-size:0.78rem;color:var(--text-dim);">Brand Voice</label>
+                  <input type="text" id="campaign-brand-voice" placeholder="e.g. Professional, witty" />
+                </div>
+              </div>
+            </div>
+            <button class="btn btn-lg" onclick="submitCampaign()">🚀 Submit Campaign & Generate Media</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><h3>📊 Active Campaigns</h3></div>
+          <div class="card-body" id="campaigns-list">
+            <p style="color:var(--text-dim);">Loading campaigns...</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Leads -->
+      <div id="section-leads" class="section hidden">
+        <div class="content-header">
+          <div>
+            <div class="content-title">Lead Intelligence</div>
+            <div class="content-subtitle">JAMIE™ curated prospects</div>
+          </div>
+        </div>
+        <div class="card"><div class="card-body" id="leads-container"></div></div>
+      </div>
+
+      <!-- Reports -->
+      <div id="section-reports" class="section hidden">
+        <div class="content-header">
+          <div>
+            <div class="content-title">Reports</div>
+            <div class="content-subtitle">Weekly performance & AI insights</div>
+          </div>
+        </div>
+        <div class="card"><div class="card-body" id="reports-container"></div></div>
+      </div>
+
+      <!-- Billing -->
+      <div id="section-billing" class="section hidden">
+        <div class="content-header">
+          <div>
+            <div class="content-title">Billing</div>
+            <div class="content-subtitle">Manage your subscription</div>
+          </div>
+        </div>
+        <div id="billing-container"></div>
+      </div>
+
+      <!-- Settings -->
+      <div id="section-settings" class="section hidden">
+        <div class="content-header">
+          <div>
+            <div class="content-title">Settings</div>
+            <div class="content-subtitle">Account & configuration</div>
+          </div>
+        </div>
+        <div class="card"><div class="card-body" id="settings-container"></div></div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- ── Chat Drawer ── -->
+<div class="chat-drawer" id="chat-drawer">
+  <div class="chat-header">
+    <h3>LUIN Concierge</h3>
+    <button class="topbar-btn" onclick="document.getElementById('chat-drawer').classList.remove('open')">✕</button>
+  </div>
+  <div class="chat-messages" id="chat-messages">
+    <div class="chat-msg ai">
+      <div class="msg-label">LUIN Concierge</div>
+      Hello! I'm your LUIN Executive Concierge. How can I help you today?
+    </div>
+  </div>
+  <div class="chat-input">
+    <input type="text" id="chat-input" placeholder="Ask anything about your campaigns..." onkeydown="if(event.key==='Enter')sendChat()" />
+    <button class="btn" onclick="sendChat()">Send</button>
+  </div>
+</div>
+
+<script src="js/api.js"></script>
+<script src="js/dashboard.js"></script>
+<script>
+function handleLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  if (!email) { document.getElementById('login-error').textContent = 'Enter your email.'; return; }
+  localStorage.setItem('luin_email', email);
+  localStorage.setItem('luin_token', 'mock-jwt-token');
+  localStorage.setItem('luin_client_id', 'c3d4e5f6-a7b8-9012-cdef-123456789012');
+  localStorage.setItem('luin_client_name', 'LUIN Agency');
+  localStorage.setItem('luin_client_plan', 'Growth');
+  document.getElementById('login-screen').classList.add('hidden');
+  document.getElementById('app-screen').classList.remove('hidden');
+  initDashboard();
+}
+function mockLogin() {
+  localStorage.setItem('luin_token', 'mock-jwt-token');
+  localStorage.setItem('luin_client_id', 'c3d4e5f6-a7b8-9012-cdef-123456789012');
+  localStorage.setItem('luin_client_name', 'LUIN Agency');
+  localStorage.setItem('luin_client_plan', 'Growth');
+  document.getElementById('login-screen').classList.add('hidden');
+  document.getElementById('app-screen').classList.remove('hidden');
+  initDashboard();
+}
+function logout() {
+  localStorage.removeItem('luin_token');
+  window.location.reload();
+}
+function submitGeneration() {
+  const type = document.getElementById('gen-type').value;
+  const prompt = document.getElementById('gen-prompt').value.trim();
+  if (!prompt) { alert('Please enter a prompt.'); return; }
+  handleGeneration(type, prompt);
+}
+async function sendChat() {
+  const input = document.getElementById('chat-input');
+  const messages = document.getElementById('chat-messages');
+  const text = input.value.trim();
+  if (!text) return;
+  messages.innerHTML += `<div class="chat-msg user"><div class="msg-label">You</div>${escHtml(text)}</div>`;
+  input.value = '';
+  messages.innerHTML += `<div class="chat-msg ai" id="ai-typing"><div class="msg-label">LUIN Concierge</div><span class="text-dim">Thinking...</span></div>`;
+  messages.scrollTop = messages.scrollHeight;
+  try {
+    const clientId = currentWorkspace || _clientId || 'c3d4e5f6-a7b8-9012-cdef-123456789012';
+    const result = await syncChat(clientId, text);
+    document.getElementById('ai-typing')?.remove();
+    messages.innerHTML += `<div class="chat-msg ai"><div class="msg-label">LUIN Concierge</div>${escHtml(result.reply)}</div>`;
+  } catch (e) {
+    document.getElementById('ai-typing')?.remove();
+    messages.innerHTML += `<div class="chat-msg ai"><div class="msg-label">LUIN Concierge</div><span class="text-red">Error: ${escHtml(e.message)}</span></div>`;
+  }
+  messages.scrollTop = messages.scrollHeight;
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,102 @@
+{
+  "name": "LUIN — Tahuti CRM Log Router",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "tahuti-crm",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "luin-tahuti-crm"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.body?.target_url || 'http://localhost:8000/api/v1/crm/log' }}",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "client_id",
+              "value": "={{ $json.body?.client_id || '' }}"
+            },
+            {
+              "name": "channel",
+              "value": "n8n"
+            },
+            {
+              "name": "message_text",
+              "value": "={{ $json.body?.message || $json.body?.data?.message || '' }}"
+            },
+            {
+              "name": "action_item",
+              "value": "={{ $json.body?.action_item || '' }}"
+            },
+            {
+              "name": "status",
+              "value": "={{ $json.body?.status || 'open' }}"
+            },
+            {
+              "name": "metadata_json",
+              "value": "={{ JSON.stringify($json.body?.metadata || {}) }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "send-to-backend",
+      "name": "Send to LUIN Backend",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"status\": \"logged\", \"client_id\": \"={{ $json.body?.client_id || '' }}\", \"channel\": \"n8n\"}",
+        "options": {}
+      },
+      "id": "response",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [680, 300]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Send to LUIN Backend",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send to LUIN Backend": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "saveExecutionProgress": true
+  },
+  "triggerTimes": []
+}

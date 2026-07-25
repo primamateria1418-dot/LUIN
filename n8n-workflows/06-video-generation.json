@@ -1,0 +1,541 @@
+{
+  "name": "LUIN — Multi-Modal Video Generation Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 10 * * *"
+            }
+          ]
+        }
+      },
+      "name": "Daily 10am Video Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -14448,
+        14864
+      ],
+      "id": "vid-trigger-001"
+    },
+    {
+      "parameters": {
+        "url": "http://luin-backend:8000/api/v1/workspaces",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "name": "Fetch Workspaces",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -14240,
+        14768
+      ],
+      "id": "vid-workspaces-001",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "luin-backend-auth",
+          "name": "LUIN Backend Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "http://luin-backend:8000/api/v1/campaigns/stats/{{ $('Fetch Workspaces').first().json[0].id }}",
+        "options": {}
+      },
+      "name": "Fetch Campaign Stats",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -14240,
+        14976
+      ],
+      "id": "vid-stats-001"
+    },
+    {
+      "parameters": {},
+      "name": "Merge Workspace + Stats",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        -14016,
+        14864
+      ],
+      "id": "vid-merge-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "const workspace = $('Merge Workspace + Stats').all()[0].json;\nconst stats = $('Merge Workspace + Stats').all()[1].json;\n\nreturn [{\n  json: {\n    workspace_id: workspace.id,\n    workspace_name: workspace.name,\n    project_tag: workspace.project_tag,\n    pending_campaigns: stats.pending || 0,\n    approved_campaigns: stats.approved || 0,\n    last_campaign_date: stats.last_campaign_date || null\n  }\n}];"
+      },
+      "name": "Prepare Video Brief",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -14016,
+        14864
+      ],
+      "id": "vid-brief-001"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:3000/api/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"oup-creative-agent\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Generate a video storyboard for a brand campaign.\\n\\nPending Campaigns: {{ $json.pending_campaigns }}\\nApproved Campaigns: {{ $json.approved_campaigns }}\\nProject Tag: {{ $json.project_tag }}\\n\\nOutput format:\\nSCENE_COUNT: [number]\\nSCENE_1: [description]\\nSCENE_2: [description]\\n...\\nSTYLE: [animation style]\\nDURATION: [total seconds]\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "name": "Generate Storyboard",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -13792,
+        14864
+      ],
+      "id": "vid-storyboard-001",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "luin-backend-auth",
+          "name": "LUIN Backend Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const storyboardText = $input.first().json.choices[0].message.content;\n\nconst sceneCountMatch = storyboardText.match(/SCENE_COUNT:\\s*(\\d+)/i);\nconst styleMatch = storyboardText.match(/STYLE:\\s*(.+)/i);\nconst durationMatch = storyboardText.match(/DURATION:\\s*(\\d+)/i);\n\nconst scenes = [];\nconst sceneRegex = /SCENE_(\\d+):\\s*([\\s\\S]*?)(?=\\n\\s*SCENE_|$)/gi;\nlet match;\nwhile ((match = sceneRegex.exec(storyboardText)) !== null) {\n  scenes.push({\n    scene_number: parseInt(match[1]),\n    description: match[2].trim()\n  });\n}\n\nreturn [{\n  json: {\n    workspace_id: $('Prepare Video Brief').first().json.workspace_id,\n    scene_count: sceneCountMatch ? parseInt(sceneCountMatch[1]) : 3,\n    scenes: scenes,\n    style: styleMatch ? styleMatch[1].trim() : 'cinematic',\n    duration: durationMatch ? parseInt(durationMatch[1]) : 30,\n    storyboard: storyboardText\n  }\n}];"
+      },
+      "name": "Extract Storyboard",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -13568,
+        14864
+      ],
+      "id": "vid-extract-001"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8188/prompt",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"prompt\": {{ JSON.stringify($json.storyboard) }},\n  \"model\": \"wan2.2_ti2v_5B_fp16\",\n  \"duration\": {{ $json.duration }},\n  \"style\": {{ JSON.stringify($json.style) }},\n  \"workspace_id\": {{ JSON.stringify($json.workspace_id) }},\n  \"scene_count\": {{ $json.scene_count }}\n}",
+        "options": {
+          "timeout": 600000
+        }
+      },
+      "name": "Submit Video to ComfyUI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -13360,
+        14864
+      ],
+      "id": "vid-comfyui-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "const prior = $input.first().json;\nconst promptId = $input.first().json.prompt_id || $input.first().json.id;\n\nreturn [{\n  json: {\n    ...prior,\n    prompt_id: promptId,\n    status: 'pending',\n    polling_url: `http://host.docker.internal:8188/prompt/${promptId}`\n  }\n}];"
+      },
+      "name": "Extract Video Prompt ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -13136,
+        14864
+      ],
+      "id": "vid-promptid-001"
+    },
+    {
+      "parameters": {
+        "name": "Wait for Video",
+        "waitTime": {
+          "type": "minutes",
+          "value": 5
+        }
+      },
+      "name": "Wait for Video Generation",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -12912,
+        14864
+      ],
+      "id": "vid-wait-001",
+      "resume": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.polling_url }}",
+        "options": {}
+      },
+      "name": "Check Video Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -12688,
+        14864
+      ],
+      "id": "vid-status-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "const status = $input.first().json;\nconst prior = $('Extract Video Prompt ID').first().json;\n\nreturn [{\n  json: {\n    ...prior,\n    status: status.status || 'unknown',\n    output_url: status.output_url || null,\n    error: status.error || null\n  }\n}];"
+      },
+      "name": "Parse Video Status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -12480,
+        14864
+      ],
+      "id": "vid-parse-001"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:3000/api/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"oup-qa-agent\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Review this generated video storyboard for quality and brand compliance.\\n\\nStoryboard:\\n{{ $json.storyboard }}\\n\\nVideo URL: {{ $json.output_url }}\\n\\nVerdict: APPROVED or REJECTED with specific reasons.\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "name": "QA Video Review",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -12256,
+        14864
+      ],
+      "id": "vid-qa-001",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "luin-backend-auth",
+          "name": "LUIN Backend Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const qaText = $input.first().json.choices[0].message.content;\nconst prior = $('Parse Video Status').first().json;\nconst approved = qaText.toUpperCase().includes('VERDICT: APPROVED');\n\nreturn [{ json: { ...prior, qa_output: qaText, approved, qa_approved: approved } }];"
+      },
+      "name": "Extract Video QA Verdict",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -12032,
+        14864
+      ],
+      "id": "vid-qa-extract-001"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.approved }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "IF Video Approved",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -11808,
+        14864
+      ],
+      "id": "vid-if-approved-001"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://luin-backend:8000/api/v1/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"generation_type\": \"video\",\n  \"prompt\": {{ JSON.stringify($json.storyboard) }},\n  \"workspace_id\": {{ JSON.stringify($json.workspace_id) }},\n  \"output_url\": {{ JSON.stringify($json.output_url) }},\n  \"status\": \"approved\",\n  \"scene_count\": {{ $json.scene_count }},\n  \"qa_notes\": {{ JSON.stringify($json.qa_output) }}\n}",
+        "options": {}
+      },
+      "name": "Sync Video to Backend",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -11584,
+        14752
+      ],
+      "id": "vid-sync-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "const prior = $('Extract Video QA Verdict').first().json;\nconst rewritePrompt = `REGENERATION REQUIRED.\\n\\nQA rejected the video for this reason:\\n${prior.qa_output}\\n\\nOriginal storyboard:\\n${prior.storyboard}\\n\\nRegenerate with corrections applied.`;\n\nreturn [{ json: { ...prior, rewrite_prompt: rewritePrompt } }];"
+      },
+      "name": "Prepare Video Regeneration",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -11584,
+        14976
+      ],
+      "id": "vid-rewrite-001"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8188/prompt",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"prompt\": {{ JSON.stringify($json.rewrite_prompt) }},\n  \"model\": \"wan2.2_ti2v_5B_fp16\",\n  \"duration\": {{ $json.duration }},\n  \"style\": {{ JSON.stringify($json.style) }},\n  \"workspace_id\": {{ JSON.stringify($json.workspace_id) }},\n  \"scene_count\": {{ $json.scene_count }}\n}",
+        "options": {
+          "timeout": 600000
+        }
+      },
+      "name": "Regenerate Video",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -11360,
+        14976
+      ],
+      "id": "vid-regenerate-001"
+    }
+  ],
+  "connections": {
+    "Daily 10am Video Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Workspaces",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch Campaign Stats",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Fetch Workspaces": {
+      "main": [
+        [
+          {
+            "node": "Merge Workspace + Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Campaign Stats": {
+      "main": [
+        [
+          {
+            "node": "Merge Workspace + Stats",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Workspace + Stats": {
+      "main": [
+        [
+          {
+            "node": "Prepare Video Brief",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Video Brief": {
+      "main": [
+        [
+          {
+            "node": "Generate Storyboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Storyboard": {
+      "main": [
+        [
+          {
+            "node": "Extract Storyboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Storyboard": {
+      "main": [
+        [
+          {
+            "node": "Submit Video to ComfyUI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Submit Video to ComfyUI": {
+      "main": [
+        [
+          {
+            "node": "Extract Video Prompt ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Video Prompt ID": {
+      "main": [
+        [
+          {
+            "node": "Wait for Video Generation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for Video Generation": {
+      "main": [
+        [
+          {
+            "node": "Check Video Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Video Status": {
+      "main": [
+        [
+          {
+            "node": "Parse Video Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Video Status": {
+      "main": [
+        [
+          {
+            "node": "QA Video Review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "QA Video Review": {
+      "main": [
+        [
+          {
+            "node": "Extract Video QA Verdict",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Video QA Verdict": {
+      "main": [
+        [
+          {
+            "node": "IF Video Approved",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Video Approved": {
+      "main": [
+        [
+          {
+            "node": "Sync Video to Backend",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Video Regeneration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sync Video to Backend": {
+      "main": [
+        [
+          {
+            "node": "Log to History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Video Regeneration": {
+      "main": [
+        [
+          {
+            "node": "Regenerate Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Regenerate Video": {
+      "main": [
+        [
+          {
+            "node": "Wait for Video Generation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "instanceId": "9a11fbddf22ac36d3c3e3323f3f87a790687515d712f5d379efb251ff2726b09"
+  }
+}
