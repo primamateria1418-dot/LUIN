@@ -6,10 +6,11 @@ Multi-tenant schema with Supabase-compatible PostgreSQL design.
 from datetime import datetime, timezone
 from typing import Optional
 
+from enum import Enum as PyEnum
 from sqlalchemy import (
     Column,
     DateTime,
-    Enum,
+    Enum as sa_enum,
     ForeignKey,
     Integer,
     String,
@@ -45,15 +46,15 @@ class Base(DeclarativeBase):
     pass
 
 
-# --- Enums ---
-class ClientStatus(str, Enum):
+# --- Enums (Python standard library) ---
+class ClientStatus(PyEnum):
     ACTIVE = "active"
     TRIAL = "trial"
     SUSPENDED = "suspended"
     CHURNED = "churned"
 
 
-class CampaignStatus(str, Enum):
+class CampaignStatus(PyEnum):
     PENDING = "pending"
     DRAFT = "draft"
     APPROVED = "approved"
@@ -61,7 +62,7 @@ class CampaignStatus(str, Enum):
     REJECTED = "rejected"
 
 
-class CRMChannel(str, Enum):
+class CRMChannel(PyEnum):
     EMAIL = "email"
     TELEGRAM = "telegram"
     DISCORD = "discord"
@@ -69,7 +70,7 @@ class CRMChannel(str, Enum):
     HERMES = "hermes"
 
 
-class CRMActionStatus(str, Enum):
+class CRMActionStatus(PyEnum):
     OPEN = "open"
     IN_PROGRESS = "in_progress"
     DONE = "done"
@@ -84,7 +85,7 @@ class Client(Base):
     id = Column(PG_UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
     name = Column(String(255), nullable=False)
     corporate_domain = Column(String(255), nullable=True)
-    status = Column(Enum(ClientStatus), default=ClientStatus.TRIAL)
+    status = Column(sa_enum(ClientStatus), default=ClientStatus.TRIAL)
     stripe_subscription_id = Column(String(512), nullable=True)
     stripe_customer_id = Column(String(512), nullable=True)
     project_tag = Column(String(64), default="#luin")
@@ -114,10 +115,10 @@ class CRMLog(Base):
     id = Column(PG_UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
     client_id = Column(PG_UUID(as_uuid=True), ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
     timestamp = Column(DateTime(timezone=True), server_default=func.now())
-    channel = Column(Enum(CRMChannel), default=CRMChannel.WEBHOOK)
+    channel = Column(sa_enum(CRMChannel), default=CRMChannel.WEBHOOK)
     message_text = Column(Text, nullable=True)
     action_item = Column(Text, nullable=True)
-    status = Column(Enum(CRMActionStatus), default=CRMActionStatus.OPEN)
+    status = Column(sa_enum(CRMActionStatus), default=CRMActionStatus.OPEN)
     metadata_json = Column(JSONB, nullable=True)
 
     client = relationship("Client", back_populates="crm_logs")
@@ -133,7 +134,7 @@ class CampaignQueue(Base):
     content_type = Column(String(64), default="text")  # text, image, video, blog
     draft_text = Column(Text, nullable=True)
     media_path = Column(String(512), nullable=True)
-    status = Column(Enum(CampaignStatus), default=CampaignStatus.PENDING)
+    status = Column(sa_enum(CampaignStatus), default=CampaignStatus.PENDING)
     scheduled_at = Column(DateTime(timezone=True), nullable=True)
     published_at = Column(DateTime(timezone=True), nullable=True)
     feedback_notes = Column(Text, nullable=True)
