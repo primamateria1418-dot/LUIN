@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from config import get_settings
 from database import async_session_maker, seed_initial_clients
-from middleware.rate_limit import rate_limit_middleware
+from middleware.rate_limit import RateLimitMiddleware
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("luin")
@@ -36,7 +36,7 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    app.add_middleware(rate_limit_middleware)
+    app.add_middleware(RateLimitMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.CORS_ORIGINS.split(","),

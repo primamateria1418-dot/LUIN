@@ -7,8 +7,11 @@ import time
 from collections import defaultdict
 from typing import Dict, Tuple
 
-from fastapi import Request, Response, HTTPException
+from fastapi import Request
 from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request as StarletteRequest
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 
 class RateLimiter:
@@ -46,28 +49,30 @@ class RateLimiter:
 rate_limiter = RateLimiter(max_tokens=100, refill_rate=1.0)
 
 
-async def rate_limit_middleware(request: Request, call_next):
-    """FastAPI middleware for rate limiting."""
-    client_ip = request.client.host if request.client else "unknown"
-    path = request.url.path
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    """FastAPI/Starlette middleware for rate limiting."""
 
-    if path in ("/health", "/api/v1/health"):
+    async def dispatch(self, request: Request, call_next):
+        client_ip = request.client.host if request.client else "unknown"
+        path = request.url.path
+
+        if path in ("/health", "/api/v1/health"):
+            response = await call_next(request)
+            return response
+
+        if not rate_limiter.consume(client_ip):
+            remaining = rate_limiter.get_remaining(client_ip)
+            return JSONResponse(
+                status_code=429,
+                content={
+                    "detail": "Rate limit exceeded. Try again later.",
+                    "retry_after": 60,
+                    "remaining_tokens": remaining,
+                },
+                headers={"Retry-After": "60"},
+            )
+
         response = await call_next(request)
-        return response
-
-    if not rate_limiter.consume(client_ip):
         remaining = rate_limiter.get_remaining(client_ip)
-        return JSONResponse(
-            status_code=429,
-            content={
-                "detail": "Rate limit exceeded. Try again later.",
-                "retry_after": 60,
-                "remaining_tokens": remaining,
-            },
-            headers={"Retry-After": "60"},
-        )
-
-    response = await call_next(request)
-    remaining = rate_limiter.get_remaining(client_ip)
-    response.headers["X-RateLimit-Remaining"] = str(remaining)
-    return response
+        response.headers["X-RateLimit-Remaining"] = str(remaining)
+        return response
