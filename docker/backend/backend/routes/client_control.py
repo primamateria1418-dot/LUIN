@@ -10,9 +10,9 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
 from typing import Optional, List
 
-from ..config import get_settings
-from ..middleware.auth import get_current_user_token
-from ..database import async_session_maker, Client
+from config import get_settings
+from middleware.auth import get_current_user_token
+from database import async_session_maker, Client
 from sqlalchemy import select
 
 logger = logging.getLogger("luin.client_control")

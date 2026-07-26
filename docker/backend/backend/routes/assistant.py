@@ -11,9 +11,9 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 
-from ..config import get_settings
-from ..middleware.auth import get_current_user_token
-from ..models import ConciergeMessage, ConciergeResponse
+from config import get_settings
+from middleware.auth import get_current_user_token
+from models import ConciergeMessage, ConciergeResponse
 
 logger = logging.getLogger("luin.assistant")
 router = APIRouter()
