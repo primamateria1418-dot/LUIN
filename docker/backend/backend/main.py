@@ -8,9 +8,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from config import get_settings
-from database import async_session_maker, seed_initial_clients
-from middleware.rate_limit import RateLimitMiddleware
+from backend.config import get_settings
+from backend.database import async_session_maker, seed_initial_clients
+from backend.middleware.rate_limit import RateLimitMiddleware
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("luin")
@@ -45,8 +45,8 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    from routes import auth, assistant, billing, campaigns, tahuti_webhook, generate, workspaces, client_control, campaign_studio
-    from modules import brand_pack
+    from backend.routes import auth, assistant, billing, campaigns, tahuti_webhook, generate, workspaces, client_control, campaign_studio
+    from backend.modules import brand_pack
 
     app.include_router(auth.router, prefix="/api/v1", tags=["auth"])
     app.include_router(assistant.router, prefix="/api/v1", tags=["assistant"])

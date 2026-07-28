@@ -12,9 +12,9 @@ from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from config import get_settings
-from database import Client, get_db
-from models import CheckoutSessionRequest
+from backend.config import get_settings
+from backend.database import Client, get_db
+from backend.models import CheckoutSessionRequest
 
 logger = logging.getLogger("luin.billing")
 router = APIRouter()

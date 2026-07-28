@@ -9,9 +9,9 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 
-from config import get_settings
-from middleware.auth import get_current_user_token
-from models import (
+from backend.config import get_settings
+from backend.middleware.auth import get_current_user_token
+from backend.models import (
     LoginRequest,
     MagicLinkRequest,
     TokenResponse,

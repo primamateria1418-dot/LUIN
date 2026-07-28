@@ -4,10 +4,11 @@
 # --- Web Framework ---
 fastapi>=0.115.0
 uvicorn[standard]>=0.30.0
+gunicorn>=22.0.0
 python-multipart>=0.0.9
 
 # --- Database ---
-sqlalchemy>=2.0.35
+sqlalchemy[asyncio]>=2.0.35
 asyncpg>=0.30.0
 alembic>=1.14.0
 
@@ -15,8 +16,9 @@ alembic>=1.14.0
 python-jose[cryptography]>=3.3.0
 passlib[bcrypt]>=1.7.4
 python-dotenv>=1.0.1
-pydantic>=2.9.0
+pydantic[email]>=2.9.0
 pydantic-settings>=2.5.0
+email-validator>=2.1.0
 stripe>=11.0.0
 
 # --- HTTP ---
@@ -33,3 +35,4 @@ vtracer>=0.2.0
 # --- Utilities ---
 python-dateutil>=2.9.0
 tenacity>=9.0.0
+aiofiles>=24.1.0

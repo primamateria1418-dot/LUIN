@@ -8,7 +8,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
 from typing import Optional
 
-from config import get_settings
+from backend.config import get_settings
 
 settings = get_settings()
 security = HTTPBearer(auto_error=False)
