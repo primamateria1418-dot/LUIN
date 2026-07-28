@@ -4,7 +4,7 @@ FROM python:3.12-slim
 WORKDIR /app
 
 # Add backend/ to the Python path so sibling modules (config, routes, modules) are importable
-ENV PYTHONPATH=/app/backend
+ENV PYTHONPATH=/app
 
 # Copy requirements and install dependencies
 COPY requirements.txt .

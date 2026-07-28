@@ -2,6 +2,7 @@
 LUIN Ad-Hoc Generation API — Multi-modal generation sandbox
 """
 
+import io
 import logging
 import uuid
 from typing import Optional
@@ -9,8 +10,8 @@ from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from config import get_settings
-from database import Client, get_db
+from backend.config import get_settings
+from backend.database import Client, get_db
 
 logger = logging.getLogger("luin.generate")
 router = APIRouter()

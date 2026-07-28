@@ -9,9 +9,9 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from config import get_settings
-from database import CampaignQueue, Client, CRMLog, CRMActionStatus, CRMChannel, CampaignStatus, get_db
-from models import CRMLogCreate, CRMLogResponse
+from backend.config import get_settings
+from backend.database import CampaignQueue, Client, CRMLog, CRMActionStatus, CRMChannel, CampaignStatus, get_db
+from backend.models import CRMLogCreate, CRMLogResponse
 
 logger = logging.getLogger("luin.crm")
 router = APIRouter()
