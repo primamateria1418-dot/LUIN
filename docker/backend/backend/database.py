@@ -34,11 +34,16 @@ _db_url = settings.DATABASE_URL
 if _db_url.startswith("postgresql://") and "+asyncpg" not in _db_url:
     _db_url = _db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
 
+# Strip ?sslmode=require from the URL — asyncpg doesn't accept it as a
+# query param. SSL is passed via connect_args instead.
+_db_url = _db_url.split("?sslmode")[0]
+
 engine = create_async_engine(
     _db_url,
     pool_size=settings.DATABASE_POOL_SIZE,
     max_overflow=settings.DATABASE_MAX_OVERFLOW,
     echo=settings.DEBUG,
+    connect_args={"ssl": "require"},
 )
 
 async_session_maker = async_sessionmaker(
