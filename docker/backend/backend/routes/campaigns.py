@@ -11,9 +11,9 @@ from pydantic import BaseModel
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from config import get_settings
-from database import CampaignQueue, Client, CampaignStatus, get_db
-from models import CampaignCreate, CampaignFeedback, CampaignResponse
+from backend.config import get_settings
+from backend.database import CampaignQueue, Client, CampaignStatus, get_db
+from backend.models import CampaignCreate, CampaignFeedback, CampaignResponse
 
 logger = logging.getLogger("luin.campaigns")
 router = APIRouter()

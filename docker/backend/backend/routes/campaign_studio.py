@@ -8,9 +8,9 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
 from typing import Optional, List
 
-from config import get_settings
-from middleware.auth import get_current_user_token
-from database import async_session_maker, Client, CampaignQueue
+from backend.config import get_settings
+from backend.middleware.auth import get_current_user_token
+from backend.database import async_session_maker, Client, CampaignQueue
 from sqlalchemy import select
 
 logger = logging.getLogger("luin.campaign_studio")
