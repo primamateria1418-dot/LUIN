@@ -5,6 +5,7 @@ Multi-tenant schema with Supabase-compatible PostgreSQL design.
 
 from datetime import datetime, timezone
 from typing import Optional
+import uuid
 
 from enum import Enum as PyEnum
 from sqlalchemy import (
@@ -203,21 +204,21 @@ async def seed_initial_clients(session: AsyncSession):
 
     clients_data = [
         Client(
-            id=PG_UUID(hex="a1b2c3d4-e5f6-7890-abcd-ef1234567890"),
+            id=uuid.UUID("a1b2c3d4-e5f6-7890-abcd-ef1234567890"),
             name="1095 Apparel",
             corporate_domain="1095apparel.com",
             status=ClientStatus.ACTIVE,
             project_tag="#shopify",
         ),
         Client(
-            id=PG_UUID(hex="b2c3d4e5-f6a7-8901-bcde-f12345678901"),
+            id=uuid.UUID("b2c3d4e5-f6a7-8901-bcde-f12345678901"),
             name="United Planet",
             corporate_domain="unitedplanet.org",
             status=ClientStatus.ACTIVE,
             project_tag="#luin",
         ),
         Client(
-            id=PG_UUID(hex="c3d4e5f6-a7b8-9012-cdef-123456789012"),
+            id=uuid.UUID("c3d4e5f6-a7b8-9012-cdef-123456789012"),
             name="LUIN Agency",
             corporate_domain="luin.cc",
             status=ClientStatus.ACTIVE,
