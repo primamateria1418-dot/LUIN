@@ -55,6 +55,13 @@ async_session_maker = async_sessionmaker(
 )
 
 
+# --- Table Creation ---
+async def create_tables():
+    """Create all ORM tables if they don't exist. Safe to call on every startup."""
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+
 class Base(DeclarativeBase):
     pass
 

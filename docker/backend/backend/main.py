@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.config import get_settings
-from backend.database import async_session_maker, seed_initial_clients
+from backend.database import async_session_maker, create_tables, seed_initial_clients
 from backend.middleware.rate_limit import RateLimitMiddleware
 
 logging.basicConfig(level=logging.INFO)
@@ -22,6 +22,7 @@ settings = get_settings()
 async def lifespan(app: FastAPI):
     logger.info("LUIN Engine starting up...")
     async with async_session_maker() as session:
+        await create_tables()
         await seed_initial_clients(session)
     yield
     logger.info("LUIN Engine shutting down.")
