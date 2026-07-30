@@ -26,8 +26,16 @@ from backend.config import get_settings
 settings = get_settings()
 
 # --- Engine Setup ---
+# Force asyncpg dialect regardless of DATABASE_URL format.
+# Render's managed PostgreSQL env vars often default to "postgresql://"
+# which SQLAlchemy tries to resolve to sync psycopg2 — then crashes
+# inside create_async_engine. We normalize to postgresql+asyncpg://.
+_db_url = settings.DATABASE_URL
+if _db_url.startswith("postgresql://") and "+asyncpg" not in _db_url:
+    _db_url = _db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+
 engine = create_async_engine(
-    settings.DATABASE_URL,
+    _db_url,
     pool_size=settings.DATABASE_POOL_SIZE,
     max_overflow=settings.DATABASE_MAX_OVERFLOW,
     echo=settings.DEBUG,
