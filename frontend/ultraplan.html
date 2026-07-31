@@ -106,6 +106,7 @@
   </div>
 </footer>
 
+<script src="js/config.js"></script>
 <script>
 let competitors = [], questions = [], pollTimer = null, currentJobId = null;
 const API = window.LUIN_API_URL || 'http://localhost:8000/api/v1';
@@ -184,48 +185,4 @@ async function submitBrief() {
     const data = await res.json();
     if (data.status === 'done' || data.pdf_url) {
       document.getElementById('progressWrap').style.display = 'none';
-      document.getElementById('resultWrap').innerHTML = `<div class="generation-result"><div class="result-icon">🎉</div><h3>LUIN Research Brief Ready</h3><p>For: <strong>${escHtml(subject)}</strong></p>${data.pdf_url ? `<a href="${escHtml(data.pdf_url)}" target="_blank" class="btn btn-green" style="width:auto;">⬇️ Download PDF</a>` : '<p class="text-muted">Report generated successfully.</p>'}<br/><button class="btn btn-outline mt-2" onclick="resetBrief()">Run another brief →</button></div>`;
-      setStep(3);
-    }
-  } catch (e) {
-    // Simulate completion for demo
-    setTimeout(() => {
-      document.getElementById('progressWrap').style.display = 'none';
-      document.getElementById('progressBar').style.width = '100%';
-      PIPELINE_STEPS.forEach((_,i) => {
-        document.getElementById('log-'+i)?.classList.remove('active');
-        document.getElementById('log-'+i)?.classList.add('done-step');
-        document.getElementById('icon-'+i)?.textContent = '✅';
-      });
-      document.getElementById('resultWrap').innerHTML = `<div class="generation-result"><div class="result-icon">🎉</div><h3>LUIN Research Brief Ready</h3><p>For: <strong>${escHtml(subject)}</strong></p><p class="text-muted">Demo mode — connect backend API for live research.</p><button class="btn btn-outline mt-2" onclick="resetBrief()">Run another brief →</button></div>`;
-      setStep(3);
-    }, 15000);
-  }
-}
-
-function setStep(n) {
-  [1,2,3].forEach(i => {
-    const el = document.getElementById('s'+i);
-    el.classList.remove('active','done');
-    if (i < n) el.classList.add('done');
-    if (i === n) el.classList.add('active');
-  });
-}
-
-function resetBrief() {
-  clearInterval(pollTimer);
-  competitors = []; questions = []; currentJobId = null;
-  document.getElementById('competitorTags').innerHTML = '';
-  document.getElementById('questionTags').innerHTML = '';
-  document.getElementById('formWrap').style.display = '';
-  document.getElementById('submitBtn').disabled = false;
-  document.getElementById('progressWrap').style.display = 'none';
-  document.getElementById('resultWrap').innerHTML = '';
-  document.getElementById('progressBar').style.width = '0%';
-  setStep(1);
-}
-
-function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-</script>
-</body>
-</html>
+      document.getElementById('resultWrap').in
